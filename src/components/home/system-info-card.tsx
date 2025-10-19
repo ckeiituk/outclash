@@ -17,16 +17,15 @@ import {
 } from "@mui/icons-material";
 import { useVerge } from "@/hooks/use-verge";
 import { EnhancedCard } from "./enhanced-card";
-import useSWR from "swr";
 import { getSystemInfo } from "@/services/cmds";
 import { useNavigate } from "react-router-dom";
 import { version as appVersion } from "@root/package.json";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { useLockFn } from "ahooks";
 import { showNotice } from "@/services/noticeService";
 import { useSystemState } from "@/hooks/use-system-state";
 import { useServiceInstaller } from "@/hooks/useServiceInstaller";
+import { useUpdateCheck } from "@/services/update-check";
 
 export const SystemInfoCard = () => {
   const { t } = useTranslation();
@@ -87,33 +86,47 @@ export const SystemInfoCard = () => {
         ...prev,
         lastCheckUpdate: new Date(now).toLocaleString(),
       }));
-
-      setTimeout(() => {
-        if (verge?.auto_check_update) {
-          checkUpdate().catch(console.error);
-        }
-      }, 5000);
     }
   }, [verge?.auto_check_update]);
 
-  // 自动检查更新逻辑
-  useSWR(
-    verge?.auto_check_update ? "checkUpdate" : null,
-    async () => {
+  const { refresh } = useUpdateCheck({
+    revalidateOnFocus: false,
+    refreshInterval: 0,
+    dedupingInterval: 60 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (!verge?.auto_check_update) return;
+
+    const updateLastChecked = () => {
       const now = Date.now();
       localStorage.setItem("last_check_update", now.toString());
       setSystemState((prev) => ({
         ...prev,
         lastCheckUpdate: new Date(now).toLocaleString(),
       }));
-      return await checkUpdate();
-    },
-    {
-      revalidateOnFocus: false,
-      refreshInterval: 24 * 60 * 60 * 1000, // 每天检查一次
-      dedupingInterval: 60 * 60 * 1000, // 1小时内不重复检查
-    },
-  );
+    };
+
+    updateLastChecked();
+    refresh().catch(console.error);
+
+    const timeout = setTimeout(() => {
+      refresh().catch(console.error);
+    }, 5000);
+
+    const interval = setInterval(
+      () => {
+        updateLastChecked();
+        refresh().catch(console.error);
+      },
+      24 * 60 * 60 * 1000,
+    );
+
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
+  }, [refresh, verge?.auto_check_update]);
 
   // 导航到设置页面
   const goToSettings = useCallback(() => {
@@ -140,8 +153,8 @@ export const SystemInfoCard = () => {
   // 检查更新
   const onCheckUpdate = useLockFn(async () => {
     try {
-      const info = await checkUpdate();
-      if (!info?.available) {
+      const info = await refresh();
+      if (!info) {
         showNotice("success", t("Currently on the Latest Version"));
       } else {
         showNotice("info", t("Update Available"), 2000);

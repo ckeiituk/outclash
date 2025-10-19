@@ -1,13 +1,12 @@
-import useSWR from "swr";
-import { useRef } from "react";
-import { check } from "@tauri-apps/plugin-updater";
+import { useEffect, useMemo, useRef } from "react";
 import { UpdateViewer } from "../setting/mods/update-viewer";
 import { DialogRef } from "../base";
-import { useVerge } from "@/hooks/use-verge";
 import { Button } from "@/components/ui/button";
 import { t } from "i18next";
-import { Download, RefreshCw } from "lucide-react";
+import { Download } from "lucide-react";
 import { useSidebar } from "../ui/sidebar";
+import { cn } from "@root/lib/utils";
+import { useUpdateCheck } from "@/services/update-check";
 
 interface Props {
   className?: string;
@@ -15,23 +14,35 @@ interface Props {
 
 export const UpdateButton = (props: Props) => {
   const { className } = props;
-  const { verge } = useVerge();
-  const { auto_check_update } = verge || {};
   const { state: sidebarState } = useSidebar();
-
   const viewerRef = useRef<DialogRef>(null);
+  const { snapshot, badgeOnly } = useUpdateCheck();
 
-  const { data: updateInfo } = useSWR(
-    auto_check_update || auto_check_update === null ? "checkUpdate" : null,
-    check,
-    {
-      errorRetryCount: 2,
-      revalidateIfStale: false,
-      focusThrottleInterval: 36e5, // 1 hour
-    },
-  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => {
+      viewerRef.current?.open();
+    };
+    window.addEventListener("outclash:open-update-viewer", handler);
+    return () =>
+      window.removeEventListener("outclash:open-update-viewer", handler);
+  }, []);
 
-  if (!updateInfo?.available) return null;
+  const hasUpdate = Boolean(snapshot);
+  const label = snapshot
+    ? `${t("New update")} v${snapshot.version}`
+    : t("New update");
+  const indicator = useMemo(() => {
+    if (!hasUpdate) return null;
+    return (
+      <span className="pointer-events-none absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/70 opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_0_2px_rgba(15,23,42,0.65)] dark:shadow-[0_0_0_2px_rgba(15,23,42,0.95)]" />
+      </span>
+    );
+  }, [hasUpdate]);
+
+  if (!hasUpdate) return null;
 
   return (
     <>
@@ -40,20 +51,31 @@ export const UpdateButton = (props: Props) => {
         <Button
           variant="outline"
           size="icon"
-          className={className}
-          onClick={() => viewerRef.current?.open()}
+          className={cn("relative", className)}
+          aria-label={label}
+          disabled={badgeOnly}
+          onClick={() => {
+            if (badgeOnly) return;
+            viewerRef.current?.open();
+          }}
         >
+          {indicator}
           <Download />
         </Button>
       ) : (
         <Button
           variant="outline"
           size="lg"
-          className={className}
-          onClick={() => viewerRef.current?.open()}
+          className={cn("relative gap-2", className)}
+          disabled={badgeOnly}
+          onClick={() => {
+            if (badgeOnly) return;
+            viewerRef.current?.open();
+          }}
         >
+          {indicator}
           <Download />
-          {t("New update")}
+          {label}
         </Button>
       )}
     </>

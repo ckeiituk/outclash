@@ -1,6 +1,5 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { version } from "@root/package.json";
 
 // Сервисы и хуки
@@ -18,6 +17,7 @@ import { showNotice } from "@/services/noticeService";
 import { DialogRef } from "@/components/base";
 import { TooltipIcon } from "@/components/base/base-tooltip-icon";
 import { Button } from "@/components/ui/button";
+import { useUpdateCheck } from "@/services/update-check";
 
 // --- НАЧАЛО ИЗМЕНЕНИЙ 1: Импортируем все нужные иконки ---
 import {
@@ -77,6 +77,7 @@ const SettingRow = ({
 
 const SettingVergeAdvanced = ({ onError }: Props) => {
   const { t } = useTranslation();
+  const { refresh } = useUpdateCheck();
 
   const configRef = useRef<DialogRef>(null);
   const hotkeyRef = useRef<DialogRef>(null);
@@ -89,8 +90,8 @@ const SettingVergeAdvanced = ({ onError }: Props) => {
 
   const onCheckUpdate = async () => {
     try {
-      const info = await checkUpdate();
-      if (!info?.available) {
+      const info = await refresh();
+      if (!info) {
         showNotice("success", t("Currently on the Latest Version"));
       } else {
         updateRef.current?.open();
