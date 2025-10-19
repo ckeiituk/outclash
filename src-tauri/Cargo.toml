@@ -1,6 +1,6 @@
 [package]
 name = "outclash"
-version = "0.2.2"
+version = "0.2.3"
 description = "outclash"
 authors = ["zzzgydi", "wonfen", "MystiPanda", "coolcoala"]
 license = "GPL-3.0-only"
@@ -13,7 +13,8 @@ build = "build.rs"
 identifier = "io.github.outclash"
 
 [build-dependencies]
-tauri-build = { version = "2.3.0", features = [] }
+# Use the latest available tauri-build compatible with tauri 2.x
+tauri-build = { version = "2.4.1", features = [] }
 
 [dependencies]
 url = "2.5.4"
