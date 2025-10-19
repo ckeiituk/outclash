@@ -232,59 +232,97 @@ jobs:
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
 
-      - name: Upload release assets (stable names)
+      - name: Rename artifacts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $base = Join-Path "src-tauri\target" "${{ matrix.target }}" "release\bundle\nsis"
+          if (-not (Test-Path $base)) { return }
+          $rules = @{
+            "*_x64-setup.exe"      = "OutClash-windows-x64-setup.exe"
+            "*_x64-setup.exe.sig"  = "OutClash-windows-x64-setup.exe.sig"
+            "*_x64-setup.nsis.zip" = "OutClash-windows-x64-setup.nsis.zip"
+            "*_arm64-setup.exe"      = "OutClash-windows-arm64-setup.exe"
+            "*_arm64-setup.exe.sig"  = "OutClash-windows-arm64-setup.exe.sig"
+            "*_arm64-setup.nsis.zip" = "OutClash-windows-arm64-setup.nsis.zip"
+          }
+          foreach ($pattern in $rules.Keys) {
+            $file = Get-ChildItem -Path $base -File | Where-Object { $_.Name -like $pattern } | Select-Object -First 1
+            if ($file) {
+              Rename-Item -LiteralPath $file.FullName -NewName $rules[$pattern] -Force
+            }
+          }
+
+      - name: Rename artifacts (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          [ -d "$BASE" ] || exit 0
+          rename_glob() {
+            local pattern=$1 dest=$2 dir=$3
+            local match
+            match=$(find "$dir" -maxdepth 1 -type f -name "$pattern" | head -n 1 || true)
+            if [ -n "$match" ]; then
+              mv -f "$match" "$dir/$dest"
+            fi
+          }
+          DEB_DIR="$BASE/deb"
+          RPM_DIR="$BASE/rpm"
+          [ -d "$DEB_DIR" ] && {
+            rename_glob 'OutClash_*_amd64.deb' 'OutClash-linux-x86_64.deb' "$DEB_DIR"
+            rename_glob 'OutClash_*_arm64.deb' 'OutClash-linux-arm64.deb' "$DEB_DIR"
+            rename_glob 'OutClash_*_armhf.deb' 'OutClash-linux-armhf.deb' "$DEB_DIR"
+          }
+          [ -d "$RPM_DIR" ] && {
+            rename_glob 'OutClash-*-1.x86_64.rpm' 'OutClash-linux-x86_64.rpm' "$RPM_DIR"
+            rename_glob 'OutClash-*-1.aarch64.rpm' 'OutClash-linux-arm64.rpm' "$RPM_DIR"
+            rename_glob 'OutClash-*-1.armhfp.rpm' 'OutClash-linux-armhf.rpm' "$RPM_DIR"
+          }
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "OutClash v${{ env.VERSION }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
+            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz.sig
+
+      - name: Verify release assets (tag URLs)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
           TAG="v${{ env.VERSION }}"
-          echo "Uploading artifacts for $TAG (${{ runner.os }} / ${{ matrix.target }})"
-
+          urls=()
           if [[ "${{ runner.os }}" == "Windows" ]]; then
-            shopt -s nullglob
-            BASE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/nsis"
-            for path in "$BASE_DIR"/*; do
-              [[ -e "$path" ]] || continue
-              fname=$(basename "$path")
-              dest=""
-              case "$fname" in
-                *x64-setup.exe) dest="OutClash-windows-x64-setup.exe" ;;
-                *x64-setup.exe.sig) dest="OutClash-windows-x64-setup.exe.sig" ;;
-                *x64-setup.nsis.zip) dest="OutClash-windows-x64-setup.nsis.zip" ;;
-                *arm64-setup.exe) dest="OutClash-windows-arm64-setup.exe" ;;
-                *arm64-setup.exe.sig) dest="OutClash-windows-arm64-setup.exe.sig" ;;
-                *arm64-setup.nsis.zip) dest="OutClash-windows-arm64-setup.nsis.zip" ;;
-                *) ;;
-              esac
-              if [[ -n "$dest" ]]; then
-                echo "Uploading $fname -> $dest"
-                gh release upload "$TAG" "$path#$dest" --clobber
-              fi
-            done
+            if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
+              urls+=("https://github.com/$REPO/releases/download/$TAG/OutClash-windows-x64-setup.exe")
+            else
+              urls+=("https://github.com/$REPO/releases/download/$TAG/OutClash-windows-arm64-setup.exe")
+            fi
           else
-            shopt -s nullglob
-            BASE="src-tauri/target/${{ matrix.target }}/release/bundle"
-            for path in "$BASE"/deb/*.deb "$BASE"/rpm/*.rpm "$BASE"/appimage/*.AppImage "$BASE"/AppImage/*.AppImage; do
-              [[ -e "$path" ]] || continue
-              fname=$(basename "$path")
-              dest=""
-              case "$fname" in
-                *_amd64.deb) dest="OutClash-linux-x86_64.deb" ;;
-                *_arm64.deb) dest="OutClash-linux-arm64.deb" ;;
-                *_armhf.deb) dest="OutClash-linux-armhf.deb" ;;
-                *x86_64.rpm) dest="OutClash-linux-x86_64.rpm" ;;
-                *aarch64.rpm) dest="OutClash-linux-arm64.rpm" ;;
-                *armhfp.rpm) dest="OutClash-linux-armhf.rpm" ;;
-                *.AppImage) dest="OutClash-linux-x86_64.AppImage" ;;
-                *) ;;
-              esac
-              if [[ -n "$dest" ]]; then
-                echo "Uploading $fname -> $dest"
-                gh release upload "$TAG" "$path#$dest" --clobber
-              fi
-            done
+            case "${{ matrix.target }}" in
+              x86_64-unknown-linux-gnu)
+                urls+=(
+                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-x86_64.deb"
+                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-x86_64.rpm"
+                ) ;;
+            esac
           fi
+          for u in "${urls[@]}"; do
+            echo "Checking $u"
+            curl -fsSI --retry 5 --retry-delay 2 "$u" >/dev/null
+          done
 
   release-for-linux-arm:
     name: Release Build for Linux ARM
@@ -400,33 +438,44 @@ jobs:
           echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
           echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
 
-      - name: Upload release assets (stable names)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Rename artifacts
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v${{ env.VERSION }}"
-          shopt -s nullglob
           BASE="src-tauri/target/${{ matrix.target }}/release/bundle"
-          for path in "$BASE"/deb/*.deb "$BASE"/rpm/*.rpm; do
-            [[ -e "$path" ]] || continue
-            fname=$(basename "$path")
-            dest=""
-            case "$fname" in
-              *_arm64.deb) dest="OutClash-linux-arm64.deb" ;;
-              *_armhf.deb) dest="OutClash-linux-armhf.deb" ;;
-              *_amd64.deb) dest="OutClash-linux-x86_64.deb" ;;
-              *aarch64.rpm) dest="OutClash-linux-arm64.rpm" ;;
-              *armhfp.rpm) dest="OutClash-linux-armhf.rpm" ;;
-              *x86_64.rpm) dest="OutClash-linux-x86_64.rpm" ;;
-              *) ;;
-            esac
-            if [[ -n "$dest" ]]; then
-              echo "Uploading $fname -> $dest"
-              gh release upload "$TAG" "$path#$dest" --clobber
+          [ -d "$BASE" ] || exit 0
+          rename_glob() {
+            local pattern=$1 dest=$2 dir=$3
+            local match
+            match=$(find "$dir" -maxdepth 1 -type f -name "$pattern" | head -n 1 || true)
+            if [ -n "$match" ]; then
+              mv -f "$match" "$dir/$dest"
             fi
-          done
+          }
+          DEB_DIR="$BASE/deb"
+          RPM_DIR="$BASE/rpm"
+          if [ -d "$DEB_DIR" ]; then
+            case "${{ matrix.arch }}" in
+              arm64) rename_glob 'OutClash_*_arm64.deb' 'OutClash-linux-arm64.deb' "$DEB_DIR" ;;
+              armhf) rename_glob 'OutClash_*_armhf.deb' 'OutClash-linux-armhf.deb' "$DEB_DIR" ;;
+            esac
+          fi
+          if [ -d "$RPM_DIR" ]; then
+            case "${{ matrix.arch }}" in
+              arm64) rename_glob 'OutClash-*-1.aarch64.rpm' 'OutClash-linux-arm64.rpm' "$RPM_DIR" ;;
+              armhf) rename_glob 'OutClash-*-1.armhfp.rpm' 'OutClash-linux-armhf.rpm' "$RPM_DIR" ;;
+            esac
+          fi
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "OutClash v${{ env.VERSION }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
 
   release-for-fixed-webview2:
     name: Release Build for Fixed WebView2
@@ -510,33 +559,33 @@ jobs:
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
 
-      - name: Upload release assets (stable names)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+      - name: Rename artifacts
+        shell: pwsh
         run: |
-          set -euo pipefail
-          TAG="v${{ env.VERSION }}"
-          shopt -s nullglob
-          BASE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/nsis"
-          for path in "$BASE_DIR"/*; do
-            [[ -e "$path" ]] || continue
-            fname=$(basename "$path")
-            dest=""
-            case "$fname" in
-              *x64-setup.exe) dest="OutClash-windows-x64_fixed_webview2-setup.exe" ;;
-              *x64-setup.exe.sig) dest="OutClash-windows-x64_fixed_webview2-setup.exe.sig" ;;
-              *x64-setup.nsis.zip) dest="OutClash-windows-x64_fixed_webview2-setup.nsis.zip" ;;
-              *arm64-setup.exe) dest="OutClash-windows-arm64_fixed_webview2-setup.exe" ;;
-              *arm64-setup.exe.sig) dest="OutClash-windows-arm64_fixed_webview2-setup.exe.sig" ;;
-              *arm64-setup.nsis.zip) dest="OutClash-windows-arm64_fixed_webview2-setup.nsis.zip" ;;
-              *) ;;
-            esac
-            if [[ -n "$dest" ]]; then
-              echo "Uploading $fname -> $dest"
-              gh release upload "$TAG" "$path#$dest" --clobber
-            fi
-          done
+          $base = Join-Path "src-tauri\target" "${{ matrix.target }}" "release\bundle\nsis"
+          if (-not (Test-Path $base)) { return }
+          $rules = @{
+            "*_x64-setup.exe"      = "OutClash-windows-x64_fixed_webview2-setup.exe"
+            "*_x64-setup.exe.sig"  = "OutClash-windows-x64_fixed_webview2-setup.exe.sig"
+            "*_x64-setup.nsis.zip" = "OutClash-windows-x64_fixed_webview2-setup.nsis.zip"
+            "*_arm64-setup.exe"      = "OutClash-windows-arm64_fixed_webview2-setup.exe"
+            "*_arm64-setup.exe.sig"  = "OutClash-windows-arm64_fixed_webview2-setup.exe.sig"
+            "*_arm64-setup.nsis.zip" = "OutClash-windows-arm64_fixed_webview2-setup.nsis.zip"
+          }
+          foreach ($pattern in $rules.Keys) {
+            $file = Get-ChildItem -Path $base -File | Where-Object { $_.Name -like $pattern } | Select-Object -First 1
+            if ($file) {
+              Rename-Item -LiteralPath $file.FullName -NewName $rules[$pattern] -Force
+            }
+          }
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "OutClash v${{ env.VERSION }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
 
       - name: Portable Bundle
         run: pnpm portable-fixed-webview2 ${{ matrix.target }}
