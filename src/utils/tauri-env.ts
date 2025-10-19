@@ -15,4 +15,3 @@ export const hasTauriRuntime = (win: Window): win is MaybeTauriWindow => {
   const w = win as MaybeTauriWindow;
   return "__TAURI_INTERNALS__" in w || "__TAURI__" in w;
 };
-
