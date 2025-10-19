@@ -11,15 +11,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [
-      "resources",
-      "resources/locales/*"
-    ],
+    "resources": ["resources", "resources/locales/*"],
     "publisher": "OutClash",
-    "externalBin": [
-      "sidecar/out-mihomo",
-      "sidecar/out-mihomo-alpha"
-    ],
+    "externalBin": ["sidecar/out-mihomo", "sidecar/out-mihomo-alpha"],
     "copyright": "GNU General Public License v3.0",
     "category": "DeveloperTool",
     "shortDescription": "OutClash",
@@ -46,26 +40,15 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": [
-          "clash",
-          "koala-clash",
-          "outclash"
-        ]
+        "schemes": ["clash", "koala-clash", "outclash"]
       }
     }
   },
   "app": {
     "security": {
-      "capabilities": [
-        "desktop-capability",
-        "migrated"
-      ],
+      "capabilities": ["desktop-capability", "migrated"],
       "assetProtocol": {
-        "scope": [
-          "$APPDATA/**",
-          "$RESOURCE/../**",
-          "**"
-        ],
+        "scope": ["$APPDATA/**", "$RESOURCE/../**", "**"],
         "enable": true
       },
       "csp": null
