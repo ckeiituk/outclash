@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { isTauriEnv as getIsTauriEnv } from "@/utils/tauri-env";
 
 // Константы для управления масштабом
 const ZOOM_STEP = 0.1;
@@ -9,11 +10,19 @@ const MAX_ZOOM = 2.0; // 200%
 
 export const useZoomControls = () => {
   const [zoomLevel, setZoomLevel] = useState(1.0);
-  const isTauriEnv =
-    typeof window !== "undefined" &&
-    ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
-  const appWindow: any = isTauriEnv
-    ? WebviewWindow.getCurrent()
+  const isTauriEnv = getIsTauriEnv();
+
+  interface ZoomWindowControls {
+    innerSize: () => Promise<{ width: number; height: number }>;
+    scaleFactor: () => Promise<number>;
+    setZoom: (z: number) => Promise<void>;
+  }
+
+  // Note: WebviewWindow has a richer API. We narrow to the subset we use.
+  // Justification: Tauri typing does not expose a dedicated interface for zoom controls.
+  // Follow-up: Replace this with precise types if/when exposed upstream.
+  const appWindow: ZoomWindowControls = isTauriEnv
+    ? (WebviewWindow.getCurrent() as unknown as ZoomWindowControls)
     : {
         innerSize: async () => ({
           width: window.innerWidth,

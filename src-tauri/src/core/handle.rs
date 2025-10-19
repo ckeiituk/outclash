@@ -424,7 +424,7 @@ impl Handle {
                 info,
                 Type::Frontend,
                 true,
-                "Error found during startup; queued: {} - {}",
+                "Startup message queued: {} - {}",
                 status_str,
                 msg_str
             );
@@ -519,7 +519,7 @@ impl Handle {
             info,
             Type::Frontend,
             true,
-            "Sending {} accumulated startup error messages",
+            "Sending {} accumulated startup messages",
             errors.len()
         );
 
