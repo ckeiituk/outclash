@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,13 +16,50 @@ import {
   XCircle,
   FlaskConical,
   BadgeInfo,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 const PANEL_MARGIN = 16;
 const DRAG_HANDLE_ATTR = "data-update-dev-drag";
+const STORAGE_KEY = "outclash:updateDevPanel";
+
+type PanelPersistedState = {
+  x: number;
+  y: number;
+  hidden: boolean;
+};
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
+
+const readPersistedState = (): PanelPersistedState => {
+  if (typeof window === "undefined") {
+    return { x: PANEL_MARGIN, y: PANEL_MARGIN, hidden: false };
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return { x: PANEL_MARGIN, y: PANEL_MARGIN, hidden: false };
+    const parsed = JSON.parse(raw) as Partial<PanelPersistedState>;
+    return {
+      x: typeof parsed.x === "number" ? parsed.x : PANEL_MARGIN,
+      y: typeof parsed.y === "number" ? parsed.y : PANEL_MARGIN,
+      hidden: Boolean(parsed.hidden),
+    };
+  } catch {
+    return { x: PANEL_MARGIN, y: PANEL_MARGIN, hidden: false };
+  }
+};
+
+const persistState = (state: PanelPersistedState) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // ignore persistence failures silently
+  }
+};
 
 export const UpdateDevPanel = () => {
   if (!isUpdateDevToolsEnabled) return null;
@@ -39,10 +76,16 @@ export const UpdateDevPanel = () => {
     startY: number;
   } | null>(null);
 
-  const [position, setPosition] = useState(() => ({
-    x: PANEL_MARGIN,
-    y: PANEL_MARGIN,
-  }));
+  const persisted = useRef(readPersistedState());
+  const [position, setPosition] = useState({
+    x: persisted.current.x,
+    y: persisted.current.y,
+  });
+  const [hidden, setHidden] = useState(persisted.current.hidden);
+
+  useEffect(() => {
+    persistState({ x: position.x, y: position.y, hidden });
+  }, [position.x, position.y, hidden]);
 
   const clampPosition = useCallback((x: number, y: number) => {
     if (typeof window === "undefined") return { x, y };
@@ -152,6 +195,18 @@ export const UpdateDevPanel = () => {
     return "No update";
   }, [mockState.active, mockState.snapshot, snapshot]);
 
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        className="fixed left-4 top-4 z-50 flex items-center gap-2 rounded-full bg-background/80 px-3 py-2 text-xs font-medium shadow-md backdrop-blur hover:bg-background"
+        onClick={() => setHidden(false)}
+      >
+        <Eye className="h-3.5 w-3.5" /> Dev panel
+      </button>
+    );
+  }
+
   return (
     <div
       ref={panelRef}
@@ -165,12 +220,23 @@ export const UpdateDevPanel = () => {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
-      <div
-        className="mb-2 flex items-center justify-between"
-        {...{ [DRAG_HANDLE_ATTR]: true }}
-      >
-        <span className="font-semibold text-foreground">Update Dev Panel</span>
-        <span className="text-[11px] text-muted-foreground">{panelLabel}</span>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex flex-col" {...{ [DRAG_HANDLE_ATTR]: true }}>
+          <span className="font-semibold text-foreground">
+            Update Dev Panel
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            {panelLabel}
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setHidden(true)}
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+        </Button>
       </div>
 
       <div className="grid gap-2">

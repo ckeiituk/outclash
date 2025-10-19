@@ -400,5 +400,8 @@
   "View Profile-Script": "프로필-스크립트 보기",
   "View Profile-Merge": "프로필-병합 보기",
   "Update Successful": "업데이트 성공",
-  "Update Failed": "업데이트 실패"
+  "Update Failed": "업데이트 실패",
+  "New Version is available": "새 버전이 제공됩니다",
+  "New Version": "새 버전",
+  "New update": "새로운 업데이트"
 }

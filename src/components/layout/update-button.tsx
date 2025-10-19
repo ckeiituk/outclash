@@ -12,11 +12,42 @@ interface Props {
   className?: string;
 }
 
+const STORAGE_KEY = "outclash:lastUpdateViewerVersion";
+
+type StoredVersion = string | null;
+
+const readStoredVersion = (): StoredVersion => {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredVersion = (value: StoredVersion) => {
+  if (typeof window === "undefined") return;
+  try {
+    if (value === null) {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+    } else {
+      window.sessionStorage.setItem(STORAGE_KEY, value);
+    }
+  } catch {
+    // ignore storage failures
+  }
+};
+
 export const UpdateButton = (props: Props) => {
   const { className } = props;
   const { state: sidebarState } = useSidebar();
   const viewerRef = useRef<DialogRef>(null);
+  const lastOpenedVersionRef = useRef<StoredVersion>(null);
   const { snapshot, badgeOnly } = useUpdateCheck();
+
+  useEffect(() => {
+    lastOpenedVersionRef.current = readStoredVersion();
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -28,10 +59,32 @@ export const UpdateButton = (props: Props) => {
       window.removeEventListener("outclash:open-update-viewer", handler);
   }, []);
 
-  const hasUpdate = Boolean(snapshot);
-  const label = snapshot
-    ? `${t("New update")} v${snapshot.version}`
-    : t("New update");
+  const version = snapshot?.version;
+  const versionKey = version
+    ? `${snapshot?.source ?? "tauri"}:${version}`
+    : null;
+
+  useEffect(() => {
+    if (!versionKey) return;
+
+    if (badgeOnly) {
+      lastOpenedVersionRef.current = versionKey;
+      writeStoredVersion(versionKey);
+      return;
+    }
+
+    if (lastOpenedVersionRef.current === versionKey) return;
+
+    lastOpenedVersionRef.current = versionKey;
+    writeStoredVersion(versionKey);
+
+    // for mock updates, keep behavior consistent: open only once per version per session
+    viewerRef.current?.open();
+  }, [versionKey, badgeOnly]);
+
+  const hasUpdate = Boolean(version);
+  const labelText = t("New update");
+  const tooltipText = version ? `${labelText} v${version}` : labelText;
   const indicator = useMemo(() => {
     if (!hasUpdate) return null;
     return (
@@ -52,12 +105,14 @@ export const UpdateButton = (props: Props) => {
           variant="outline"
           size="icon"
           className={cn("relative", className)}
-          aria-label={label}
+          style={{ overflow: "visible" }}
+          aria-label={tooltipText}
           disabled={badgeOnly}
           onClick={() => {
             if (badgeOnly) return;
             viewerRef.current?.open();
           }}
+          title={tooltipText}
         >
           {indicator}
           <Download />
@@ -66,16 +121,23 @@ export const UpdateButton = (props: Props) => {
         <Button
           variant="outline"
           size="lg"
-          className={cn("relative gap-2", className)}
+          className={cn(
+            "relative flex w-full min-w-0 items-center justify-center gap-2 overflow-hidden text-center",
+            className,
+          )}
+          style={{ overflow: "visible" }}
           disabled={badgeOnly}
           onClick={() => {
             if (badgeOnly) return;
             viewerRef.current?.open();
           }}
+          title={tooltipText}
         >
           {indicator}
           <Download />
-          {label}
+          <span className="min-w-0 truncate" aria-hidden="true">
+            {labelText}
+          </span>
         </Button>
       )}
     </>
