@@ -1,4 +1,3 @@
-import useSWR from "swr";
 import {
   forwardRef,
   useImperativeHandle,
@@ -9,7 +8,6 @@ import {
 import { useLockFn } from "ahooks";
 import { useTranslation } from "react-i18next";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { Event, UnlistenFn } from "@tauri-apps/api/event";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import ReactMarkdown from "react-markdown";
@@ -32,6 +30,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, ExternalLink } from "lucide-react";
+import { useUpdateCheck } from "@/services/update-check";
 
 export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
   const { t } = useTranslation();
@@ -43,12 +42,7 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
   const updateState = useUpdateState();
   const setUpdateState = useSetUpdateState();
   const { addListener } = useListen();
-
-  const { data: updateInfo } = useSWR("checkUpdate", checkUpdate, {
-    errorRetryCount: 2,
-    revalidateIfStale: false,
-    focusThrottleInterval: 36e5,
-  });
+  const { snapshot, resource, isMock, canInstall } = useUpdateCheck();
 
   const [downloaded, setDownloaded] = useState(0);
   const [total, setTotal] = useState(0);
@@ -59,25 +53,29 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
   }));
 
   const markdownContent = useMemo(() => {
-    if (!updateInfo?.body) return t("New Version is available");
-    return updateInfo.body;
-  }, [updateInfo, t]);
+    if (!snapshot?.body) return t("New Version is available");
+    return snapshot.body;
+  }, [snapshot?.body, t]);
 
   const breakChangeFlag = useMemo(() => {
-    return updateInfo?.body?.toLowerCase().includes("break change") ?? false;
-  }, [updateInfo]);
+    return snapshot?.body?.toLowerCase().includes("break change") ?? false;
+  }, [snapshot?.body]);
 
   const onUpdate = useLockFn(async () => {
     if (portableFlag) {
       showNotice("error", t("Portable Updater Error"));
       return;
     }
-    if (!updateInfo?.body) return;
+    if (!snapshot || !resource) return;
     if (breakChangeFlag) {
       showNotice("error", t("Break Change Update Error"));
       return;
     }
     if (updateState) return;
+    if (!canInstall) {
+      showNotice("info", t("Currently on the Latest Version"));
+      return;
+    }
 
     setUpdateState(true);
     setDownloaded(0); // Сбрасываем прогресс перед новой загрузкой
@@ -95,7 +93,7 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
     setCurrentProgressListener(() => progressListener);
 
     try {
-      await updateInfo.downloadAndInstall();
+      await resource.downloadAndInstall();
       await relaunch();
     } catch (err: any) {
       showNotice("error", err?.message || err.toString());
@@ -118,16 +116,21 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <div className="flex justify-between items-center pr-5">
-            <DialogTitle>
-              {t("New Version")} v{updateInfo?.version}
+          <div className="flex justify-between items-center pr-5 gap-3">
+            <DialogTitle className="flex items-center gap-2">
+              {t("New Version")} v{snapshot?.version ?? "-"}
+              {isMock && (
+                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-200">
+                  Dev Mock
+                </span>
+              )}
             </DialogTitle>
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
                 openUrl(
-                  `https://github.com/ckeiituk/clash-verge-rev-lite/releases/tag/v${updateInfo?.version}`,
+                  `https://github.com/ckeiituk/clash-verge-rev-lite/releases/tag/v${snapshot?.version}`,
                 )
               }
             >
@@ -177,7 +180,7 @@ export const UpdateViewer = forwardRef<DialogRef>((props, ref) => {
           <Button
             type="button"
             onClick={onUpdate}
-            disabled={updateState || breakChangeFlag}
+            disabled={updateState || breakChangeFlag || !canInstall}
           >
             {t("Update")}
           </Button>

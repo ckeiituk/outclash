@@ -718,10 +718,10 @@ pub fn create_window(is_show: bool) -> bool {
                             }
                             Err(_) => {
                                 logging!(
-                                    warn,
+                                    info,
                                     Type::Window,
                                     true,
-                                    "UI load monitoring timed out ({}s), but window is already visible",
+                                    "UI readiness not confirmed within {}s; proceeding (window visible)",
                                     timeout_seconds
                                 );
                                 *get_ui_ready().write() = true;

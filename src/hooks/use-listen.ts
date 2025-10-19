@@ -1,13 +1,11 @@
 import { listen, UnlistenFn, EventCallback } from "@tauri-apps/api/event";
 import { event } from "@tauri-apps/api";
 import { useRef } from "react";
+import { isTauriEnv as getIsTauriEnv } from "@/utils/tauri-env";
 
 export const useListen = () => {
   const unlistenFns = useRef<UnlistenFn[]>([]);
-  const isTauriEnv =
-    typeof window !== "undefined" &&
-    ("__TAURI_INTERNALS__" in (window as any) ||
-      "__TAURI__" in (window as any));
+  const isTauriEnv = getIsTauriEnv();
 
   const addListener = async <T>(
     eventName: string,

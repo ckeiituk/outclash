@@ -57,14 +57,20 @@ async function main() {
 
     const errors = [];
     if (cargoVersion !== base) {
-      errors.push(`Cargo.toml version mismatch: expected ${base}, got ${cargoVersion}`);
+      errors.push(
+        `Cargo.toml version mismatch: expected ${base}, got ${cargoVersion}`,
+      );
     }
     if (tauriVersion !== base) {
-      errors.push(`tauri.conf.json version mismatch: expected ${base}, got ${tauriVersion}`);
+      errors.push(
+        `tauri.conf.json version mismatch: expected ${base}, got ${tauriVersion}`,
+      );
     }
 
     if (errors.length) {
-      console.error("[verify-version] Version mismatches detected:\n" + errors.join("\n"));
+      console.error(
+        "[verify-version] Version mismatches detected:\n" + errors.join("\n"),
+      );
       process.exit(1);
     }
     console.log(`[verify-version] OK — base=${base}`);
@@ -75,4 +81,3 @@ async function main() {
 }
 
 await main();
-
