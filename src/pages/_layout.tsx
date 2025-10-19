@@ -503,11 +503,16 @@ const Layout = () => {
     const { state, isMobile } = useSidebar();
     const location = useLocation();
     const routersEles = useRoutes(routers);
+    const isHomeRoute = location.pathname === "/home";
 
     return (
       <>
         <AppSidebar />
-        <main className="h-screen w-full overflow-y-auto transition-[margin] duration-200 ease-linear">
+        <main
+          className={`h-screen w-full transition-[margin] duration-200 ease-linear ${
+            isHomeRoute ? "overflow-hidden" : "overflow-y-auto"
+          }`}
+        >
           <div className="h-full w-full relative">
             {routersEles &&
               React.cloneElement(routersEles, { key: location.pathname })}
