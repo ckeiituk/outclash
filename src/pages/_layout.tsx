@@ -28,14 +28,22 @@ import { useZoomControls } from "@/hooks/useZoomControls";
 import { HwidErrorDialog } from "@/components/profile/hwid-error-dialog";
 import { UpdateDevPanel } from "@/dev/update-dev-panel";
 import { isUpdateDevToolsEnabled } from "@/services/update-check";
+import { isTauriEnv } from "@/utils/tauri-env";
 
-// Guard Tauri-specific APIs when running in web:dev
-const isTauriEnv =
-  typeof window !== "undefined" &&
-  ("__TAURI_INTERNALS__" in (window as any) || "__TAURI__" in (window as any));
+// Guard Tauri-specific APIs when running in web:dev using a typed helper
+const runningInTauri = isTauriEnv();
 
-const appWindow: any = isTauriEnv
-  ? getCurrentWebviewWindow()
+// Narrow the window API to the subset we actually use in this file.
+// Justification: Tauri's WebviewWindow has a richer surface; this keeps UI code strict and portable.
+type AppWindowLike = {
+  hide: () => Promise<void>;
+  show: () => Promise<void>;
+  onThemeChanged: (handler: () => void) => Promise<() => void>;
+};
+
+const appWindow: AppWindowLike = runningInTauri
+  ? // Upstream type does not offer an exact minimal interface; cast through unknown to our narrow shape.
+    (getCurrentWebviewWindow() as unknown as AppWindowLike)
   : {
       hide: async () => {},
       show: async () => {},
