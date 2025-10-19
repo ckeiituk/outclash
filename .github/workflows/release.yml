@@ -71,71 +71,66 @@ jobs:
           echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
           echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
 
-      - name: Generate user-friendly notes from diff
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --tags --force
-          CUR_TAG="v${{ env.VERSION }}"
-          PREV_TAG=$(git tag --list 'v*.*.*' | sort -V | grep -v "^$CUR_TAG$" | tail -n 1 || true)
-          echo "Current: $CUR_TAG | Previous: ${PREV_TAG:-none}"
+      - name: Publish release (publish draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: "OutClash v${{ env.VERSION }}"
+          draft: false
+          prerelease: false
+          make_latest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-          if [ -n "${PREV_TAG:-}" ]; then
-            git log --pretty=format:'%s' "$PREV_TAG..$CUR_TAG" > /tmp/commits.txt
+      - run: |
+          if [ -z "$UPDATE_LOGS" ]; then
+            echo "No update logs found, using default message"
+            UPDATE_LOGS="More new features are now supported. Check for detailed changelog soon."
           else
-            git log --pretty=format:'%s' -n 200 "$CUR_TAG" -- > /tmp/commits.txt
+            echo "Using found update logs"
           fi
 
-          sanitize() { sed -E 's/^[a-z]+(\([^)]*\))?:\s*//; s/^\s+|\s+$//g'; }
-          feats=$(grep -Ei '^(feat|ui)' /tmp/commits.txt | sanitize || true)
-          fixes=$(grep -Ei '^fix' /tmp/commits.txt | sanitize || true)
-          imprs=$(grep -Ei '^(perf|refactor|build)' /tmp/commits.txt | sanitize || true)
-          i18n=$(grep -Ei '^(i18n|locale|locales)' /tmp/commits.txt | sanitize || true)
+          cat > release.txt << EOF
+          $UPDATE_LOGS
 
-          {
-            echo "OutClash v${{ env.VERSION }}"
-            echo
-            if [ -n "$feats" ]; then
-              echo "Highlights"
-              echo "$feats" | sed 's/^/- /'
-              echo
-            fi
-            if [ -n "$fixes" ]; then
-              echo "Fixes"
-              echo "$fixes" | sed 's/^/- /'
-              echo
-            fi
-            if [ -n "$imprs" ]; then
-              echo "Improvements"
-              echo "$imprs" | sed 's/^/- /'
-              echo
-            fi
-            if [ -n "$i18n" ]; then
-              echo "Translations"
-              echo "$i18n" | sed 's/^/- /'
-              echo
-            fi
-            echo "Downloads"
-            echo
-            echo "- Windows x64: [EXE](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-windows-x64-setup.exe)"
-            echo "- Windows arm64: [EXE](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-windows-arm64-setup.exe)"
-            echo "- Windows (fixed WebView2) x64: [EXE](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-windows-x64_fixed_webview2-setup.exe)"
-            echo "- Windows (fixed WebView2) arm64: [EXE](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-windows-arm64_fixed_webview2-setup.exe)"
-            echo "- Linux x86_64: [DEB](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-linux-x86_64.deb) · [RPM](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-linux-x86_64.rpm)"
-            echo "- Linux arm64: [DEB](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-linux-arm64.deb) · [RPM](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-linux-arm64.rpm)"
-            echo "- Linux armhf: [DEB](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-linux-armhf.deb) · [RPM](https://github.com/${{ github.repository }}/releases/download/$CUR_TAG/OutClash-linux-armhf.rpm)"
-            echo
-          } > release.txt
+          ## Which version should I download?
 
-      - name: Publish release (create/update)
+          <!--
+          ### macOS
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-macos-aarch64.dmg"><img src="https://img.shields.io/badge/DMG-default?style=flat&logo=apple&label=Apple%20Silicon"></a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-macos-x64.dmg"><img src="https://img.shields.io/badge/DMG-default?style=flat&logo=apple&label=Intel"></a><br>
+          > :warning: **Warning**
+          If you get a notification that the application is corrupted when you run it on macOS, run this command:<br>
+          <code>sudo xattr -r -c /Applications/OutClash.app</code>
+          -->
+
+          ### Linux
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-x86_64.deb"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-x86_64.rpm"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=fedora&label=RPM"> </a>
+
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-arm64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
+
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-armhf.deb"><img src="https://img.shields.io/badge/armhf-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-armhf.rpm"><img src="https://img.shields.io/badge/armhfp-default?style=flat&logo=fedora&label=RPM"> </a>
+
+          ### Windows (Win7 is no longer supported)
+          #### Normal version (recommended)
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-arm64-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
+          #### Portable version is no longer available with many problems
+          #### Built-in Webview version 2 (large size, only used in enterprise version of the system or can not install webview2)
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-x64_fixed_webview2-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-arm64_fixed_webview2-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
+
+          Created at ${{ env.BUILDTIME }}.
+          EOF
+
+      - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{env.VERSION}}
           name: "OutClash v${{env.VERSION}}"
           body_path: release.txt
-          draft: false
-          prerelease: false
-          make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   release:
@@ -290,43 +285,6 @@ jobs:
               fi
             done
           fi
-      - name: Verify release assets availability (tag URLs)
-        env:
-          REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="v${{ env.VERSION }}"
-          urls=()
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
-              urls+=("https://github.com/$REPO/releases/download/$TAG/OutClash-windows-x64-setup.exe")
-            else
-              urls+=("https://github.com/$REPO/releases/download/$TAG/OutClash-windows-arm64-setup.exe")
-            fi
-          else
-            case "${{ matrix.target }}" in
-              x86_64-unknown-linux-gnu)
-                urls+=(
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-x86_64.deb"
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-x86_64.rpm"
-                ) ;;
-              aarch64-unknown-linux-gnu)
-                urls+=(
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-arm64.deb"
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-arm64.rpm"
-                ) ;;
-              armv7-unknown-linux-gnueabihf)
-                urls+=(
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-armhf.deb"
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-armhf.rpm"
-                ) ;;
-            esac
-          fi
-          for u in "${urls[@]}"; do
-            echo "Checking: $u"
-            curl -fsSI --retry 5 --retry-delay 2 "$u" >/dev/null
-          done
 
   release-for-linux-arm:
     name: Release Build for Linux ARM
@@ -469,21 +427,6 @@ jobs:
               gh release upload "$TAG" "$path#$dest" --clobber
             fi
           done
-      - name: Verify release assets availability (tag URLs)
-        env:
-          REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="v${{ env.VERSION }}"
-          urls=(
-            "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-${{ matrix.arch }}.deb"
-            "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-${{ matrix.arch }}.rpm"
-          )
-          for u in "${urls[@]}"; do
-            echo "Checking: $u"
-            curl -fsSI --retry 5 --retry-delay 2 "$u" >/dev/null
-          done
 
   release-for-fixed-webview2:
     name: Release Build for Fixed WebView2
@@ -594,20 +537,6 @@ jobs:
               gh release upload "$TAG" "$path#$dest" --clobber
             fi
           done
-      - name: Verify release assets availability (tag URLs)
-        env:
-          REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="v${{ env.VERSION }}"
-          if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
-            URL="https://github.com/$REPO/releases/download/$TAG/OutClash-windows-x64_fixed_webview2-setup.exe"
-          else
-            URL="https://github.com/$REPO/releases/download/$TAG/OutClash-windows-arm64_fixed_webview2-setup.exe"
-          fi
-          echo "Checking: $URL"
-          curl -fsSI --retry 5 --retry-delay 2 "$URL" >/dev/null
 
       - name: Portable Bundle
         run: pnpm portable-fixed-webview2 ${{ matrix.target }}
