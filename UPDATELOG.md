@@ -107,3 +107,4 @@ Known limitations
 - macOS builds temporarily disabled (no certificate available)
 - updated project identifier
 - all dependencies and configurations updated
+
