@@ -724,16 +724,7 @@ pub fn create_window(is_show: bool) -> bool {
                                     "UI readiness not confirmed within {}s; proceeding (window visible)",
                                     timeout_seconds
                                 );
-                                // Ensure overlay is removed to avoid infinite loading
-                                if let Some(window) = handle::Handle::global().get_window() {
-                                    let _ = window.eval(r#"
-                                        const overlay = document.getElementById('initial-loading-overlay');
-                                        if (overlay) {
-                                            overlay.style.opacity = '0';
-                                            setTimeout(() => overlay.remove(), 300);
-                                        }
-                                    "#);
-                                }
+                                *get_ui_ready().write() = true;
                             }
                         }
                     });
