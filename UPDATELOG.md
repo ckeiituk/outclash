@@ -9,6 +9,33 @@
 
 ---
 
+## v0.2.3
+
+Improvements
+
+- Unified update checking and viewer: new `update-check` service based on Tauri Updater; update badge and auto-open once per version; progress bar and "Go to Release Page" in viewer; install blocked on "Break Change".
+- New floating Update Dev Panel (dev only): trigger mock updates, badge-only mode, revalidate, open viewer; position/visibility persisted per session.
+- System Info card: shows last update check and can manually trigger a check using the new updater.
+
+TypeScript & Web-only Safety
+
+- Centralized typed Tauri env helpers (`src/utils/tauri-env.ts`) with typed stubs for web:dev.
+- Hardened `use-listen` and `useZoomControls` to guard Tauri API calls in web mode; project passes strict `tsc --noEmit`.
+
+Tauri/Rust Stability
+
+- More robust UI readiness and notification queue; deduplicated deep links; safer window recreation and tray initialization.
+
+Localization
+
+- Updated strings in ar, de, es, fa, id, jp, ko, tr, tt, zh, zhtw.
+
+CI/Release
+
+- Stable asset names, version verification, and manual notes template retained.
+- Updater artifacts enabled; bump version to 0.2.3.
+
+---
 ## v0.2.2
 - fixed bug in proxy groups menu
 - added message about global mode enabled on main screen
