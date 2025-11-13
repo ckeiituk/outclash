@@ -12,6 +12,7 @@ const monacoEditorPluginDefault = (monacoEditorPlugin as any).default as (
 ) => any;
 
 const LOW_MEM_BUILD = process.env.LOW_MEM_BUILD === "1";
+const DEBUG_BUNDLE = process.env.DEBUG_BUNDLE === "1";
 
 export default defineConfig({
   root: "src",
@@ -60,7 +61,7 @@ export default defineConfig({
     minify: LOW_MEM_BUILD ? "esbuild" : "terser",
     chunkSizeWarningLimit: 4000,
     reportCompressedSize: false,
-    sourcemap: false,
+    sourcemap: DEBUG_BUNDLE,
     cssCodeSplit: true,
     cssMinify: true,
     rollupOptions: {
@@ -75,10 +76,7 @@ export default defineConfig({
         ...(LOW_MEM_BUILD ? {} : { experimentalMinChunkSize: 30000 }),
         dynamicImportInCjs: true,
         manualChunks(id) {
-          if (LOW_MEM_BUILD) {
-            // Skip aggressive vendor chunking in low-memory mode
-            return undefined;
-          }
+          if (LOW_MEM_BUILD) return undefined; // skip custom chunking in low‑mem mode
           if (id.includes("node_modules")) {
             // Monaco Editor should be a separate chunk
             if (id.includes("monaco-editor")) return "monaco-editor";
@@ -135,12 +133,9 @@ export default defineConfig({
               return "mui";
             }
 
-            // Small vendor packages
-            const pkg = id.match(/node_modules\/([^\/]+)/)?.[1];
-            if (pkg && pkg.length < 8) return "small-vendors";
-
-            // Large vendor packages
-            return "large-vendor";
+            // Avoid overly broad buckets that can break execution order due to circular deps
+            // Defer to Rollup default for the rest
+            return undefined;
           }
         },
       },
