@@ -1,4 +1,17 @@
-## v0.2.2
+## v0.2.8
+- fixed issue with error 0xc00000142 when shutting down the computer
+- dark mode issue fixed
+- improved HWID definition
+- fixed an issue with opening a window via a shortcut when the application is already running
+- fixed uploading updater for macos
+- menu removed by right-clicking
+- allowed to set an empty password on an external controller
+
+## v0.2.7
+- fixed bug in proxy groups menu
+- added message about global mode enabled on main screen
+- fixed minor bugs
+- updated Mihomo core to v1.19.14
 
 Fixes
 

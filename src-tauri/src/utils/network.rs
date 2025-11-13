@@ -349,7 +349,8 @@ impl NetworkManager {
             request_builder = request_builder
                 .header("x-hwid", &sys_info.hwid)
                 .header("x-device-os", &sys_info.os_type)
-                .header("x-ver-os", &sys_info.os_ver);
+                .header("x-ver-os", &sys_info.os_ver)
+                .header("x-device-model", &sys_info.device_model);
         }
 
         request_builder

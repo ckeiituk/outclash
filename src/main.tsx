@@ -43,6 +43,22 @@ document.addEventListener("keydown", (event) => {
   disabledShortcuts && event.preventDefault();
 });
 
+// Disable context menu everywhere except in input fields and textareas
+document.addEventListener("contextmenu", (event) => {
+  const target = event.target as HTMLElement;
+  
+  // Allow context menu for input fields, textareas, and editable content
+  const isEditable = 
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable ||
+    target.closest('[contenteditable="true"]') !== null;
+  
+  if (!isEditable) {
+    event.preventDefault();
+  }
+});
+
 const contexts = [
   <ThemeModeProvider />,
   <LoadingCacheProvider />,
