@@ -77,66 +77,11 @@ export default defineConfig({
         dynamicImportInCjs: true,
         manualChunks(id) {
           if (LOW_MEM_BUILD) return undefined; // skip custom chunking in low‑mem mode
-          if (id.includes("node_modules")) {
-            // Monaco Editor should be a separate chunk
-            if (id.includes("monaco-editor")) return "monaco-editor";
-
-            // React-related libraries (react, react-dom, react-router-dom, etc.)
-            if (
-              id.includes("react") ||
-              id.includes("react-dom") ||
-              id.includes("react-router-dom") ||
-              id.includes("react-transition-group") ||
-              id.includes("react-error-boundary") ||
-              id.includes("react-hook-form") ||
-              id.includes("react-markdown") ||
-              id.includes("react-virtuoso")
-            ) {
-              return "react";
-            }
-
-            // Utilities chunk: group commonly used utility libraries
-            if (
-              id.includes("axios") ||
-              id.includes("lodash-es") ||
-              id.includes("dayjs") ||
-              id.includes("js-base64") ||
-              id.includes("js-yaml") ||
-              id.includes("cli-color") ||
-              id.includes("nanoid")
-            ) {
-              return "utils";
-            }
-
-            // Tauri-related plugins: grouping together Tauri plugins
-            if (
-              id.includes("@tauri-apps/api") ||
-              id.includes("@tauri-apps/plugin-clipboard-manager") ||
-              id.includes("@tauri-apps/plugin-dialog") ||
-              id.includes("@tauri-apps/plugin-fs") ||
-              id.includes("@tauri-apps/plugin-global-shortcut") ||
-              id.includes("@tauri-apps/plugin-notification") ||
-              id.includes("@tauri-apps/plugin-process") ||
-              id.includes("@tauri-apps/plugin-shell") ||
-              id.includes("@tauri-apps/plugin-updater")
-            ) {
-              return "tauri-plugins";
-            }
-
-            // Material UI libraries (grouped together)
-            if (
-              id.includes("@mui/material") ||
-              id.includes("@mui/icons-material") ||
-              id.includes("@mui/lab") ||
-              id.includes("@mui/x-data-grid")
-            ) {
-              return "mui";
-            }
-
-            // Avoid overly broad buckets that can break execution order due to circular deps
-            // Defer to Rollup default for the rest
-            return undefined;
-          }
+          if (!id.includes("node_modules")) return undefined;
+          // Keep only a dedicated chunk for monaco-editor (heavy, isolated)
+          if (id.includes("monaco-editor")) return "monaco-editor";
+          // Defer all other vendor chunking to Rollup defaults to avoid order issues
+          return undefined;
         },
       },
     },
