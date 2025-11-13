@@ -11,6 +11,8 @@ const monacoEditorPluginDefault = (monacoEditorPlugin as any).default as (
   options: IMonacoEditorOpts,
 ) => any;
 
+const LOW_MEM_BUILD = process.env.LOW_MEM_BUILD === "1";
+
 export default defineConfig({
   root: "src",
   server: {
@@ -54,7 +56,8 @@ export default defineConfig({
     outDir: "../dist",
     emptyOutDir: true,
     target: "es2020",
-    minify: "terser",
+    // Allow switching to a lighter minifier to reduce peak memory usage
+    minify: LOW_MEM_BUILD ? "esbuild" : "terser",
     chunkSizeWarningLimit: 4000,
     reportCompressedSize: false,
     sourcemap: false,
@@ -68,9 +71,14 @@ export default defineConfig({
       },
       output: {
         compact: true,
-        experimentalMinChunkSize: 30000,
+        // In low-memory mode, avoid large chunk merging to reduce memory pressure
+        ...(LOW_MEM_BUILD ? {} : { experimentalMinChunkSize: 30000 }),
         dynamicImportInCjs: true,
         manualChunks(id) {
+          if (LOW_MEM_BUILD) {
+            // Skip aggressive vendor chunking in low-memory mode
+            return undefined;
+          }
           if (id.includes("node_modules")) {
             // Monaco Editor should be a separate chunk
             if (id.includes("monaco-editor")) return "monaco-editor";
