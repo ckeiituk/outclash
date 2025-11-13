@@ -36,6 +36,7 @@ CI/Release
 - Updater artifacts enabled; bump version to 0.2.3.
 
 ---
+
 ## v0.2.2
 - fixed bug in proxy groups menu
 - added message about global mode enabled on main screen
@@ -72,6 +73,8 @@ Known limitations
 
 - macOS builds remain disabled.
 
+---
+
 ## v0.2.0
 
 New
@@ -91,6 +94,8 @@ CI/Release
 Known limitations
 
 - macOS builds remain disabled.
+
+---
 
 ## v0.1.0
 
