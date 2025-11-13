@@ -1,6 +1,6 @@
 [package]
-вname = "outclash"
-version = "0.2.8"
+name = "outclash"
+version = "0.2.4"
 description = "outclash"
 authors = ["zzzgydi", "wonfen", "MystiPanda", "coolcoala"]
 license = "GPL-3.0-only"

@@ -6,10 +6,10 @@
   - ~~Красный восклицательный или любой другой красный знак~~
 - ~~Левое меню пусть будет изначально открытым?~~ Пусть открывается при наведении?
 - Мб панель типо winamp на рабочей миниатюрная?
-- Скрипт обновления Outbound Nigeria через Remnawave API (https://www.perplexity.ai/search/mozhno-li-kak-to-zadavat-outbo-coQ3ij7DTuaNYed5JvWnTA#2)
+~~- Скрипт обновления Outbound Nigeria через Remnawave API (https://www.perplexity.ai/search/mozhno-li-kak-to-zadavat-outbo-coQ3ij7DTuaNYed5JvWnTA#2)~~
 - тумблер вместо кнопки для tun/system proxy?
 - Тёмная тема изначально
-- Переработать светлу темуw
+- Переработать светлу тему
 
 ## Фича: периодический баннер напоминания об обновлении (черновые заметки)
 
