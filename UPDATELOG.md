@@ -7,6 +7,8 @@
 - menu removed by right-clicking
 - allowed to set an empty password on an external controller
 
+---
+
 ## v0.2.2
 - fixed bug in proxy groups menu
 - added message about global mode enabled on main screen
@@ -20,6 +22,8 @@ Fixes
 CI/Release
 
 - Bump release version to 0.2.2.
+
+---
 
 ## v0.2.1
 
