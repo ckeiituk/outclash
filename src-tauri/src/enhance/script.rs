@@ -1,8 +1,32 @@
 use super::use_lowercase;
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 use serde_yaml::Mapping;
+use std::{sync::mpsc, thread, time::Duration};
+
+const SCRIPT_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub fn use_script(
+    script: String,
+    config: Mapping,
+    name: String,
+) -> Result<(Mapping, Vec<(String, String)>)> {
+    // Run script in a worker thread with timeout to avoid blocking profile updates.
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+      let result = run_script(script, config, name);
+      let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(SCRIPT_TIMEOUT) {
+        Ok(res) => res,
+        Err(_) => Err(anyhow!(
+            "Script execution timed out after {:?}",
+            SCRIPT_TIMEOUT
+        )),
+    }
+}
+
+fn run_script(
     script: String,
     config: Mapping,
     name: String,
