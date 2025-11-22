@@ -106,7 +106,12 @@ pub fn run() {
             AsyncHandler::spawn(move || async move {
                 // Exit lightweight mode if active (integrated upstream behavior)
                 if crate::module::lightweight::is_in_lightweight_mode() {
-                    logging!(info, Type::System, true, "Second instance detected: exiting lightweight mode");
+                    logging!(
+                        info,
+                        Type::System,
+                        true,
+                        "Second instance detected: exiting lightweight mode"
+                    );
                     crate::module::lightweight::exit_lightweight_mode();
                     // Wait for lightweight mode to fully exit
                     for _ in 0..50 {
@@ -118,18 +123,31 @@ pub fn run() {
                 }
 
                 // Show the main window
-                logging!(info, Type::System, true, "Second instance detected: showing main window");
+                logging!(
+                    info,
+                    Type::System,
+                    true,
+                    "Second instance detected: showing main window"
+                );
                 let _ = crate::utils::window_manager::WindowManager::show_main_window();
 
                 // Handle deep link if present (include OutClash scheme)
                 if let Some(url) = argv
                     .iter()
-                    .find(|a| a.starts_with("clash://")
-                        || a.starts_with("koala-clash://")
-                        || a.starts_with("outclash://"))
+                    .find(|a| {
+                        a.starts_with("clash://")
+                            || a.starts_with("koala-clash://")
+                            || a.starts_with("outclash://")
+                    })
                     .cloned()
                 {
-                    logging!(info, Type::System, true, "Second instance with deep link: {}", url);
+                    logging!(
+                        info,
+                        Type::System,
+                        true,
+                        "Second instance with deep link: {}",
+                        url
+                    );
                     resolve::schedule_handle_deep_link(url);
                 }
             });
@@ -435,7 +453,11 @@ pub fn run() {
                     "Exit event triggered, but exit flow already executed, skip duplicate cleanup"
                 );
             } else {
-                logging!(debug, Type::System, "Exit event triggered, executing cleanup flow");
+                logging!(
+                    debug,
+                    Type::System,
+                    "Exit event triggered, executing cleanup flow"
+                );
                 handle.set_is_exiting();
                 EventDrivenProxyManager::global().notify_app_stopping();
                 feat::clean();

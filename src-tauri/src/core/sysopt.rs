@@ -1,11 +1,9 @@
 #[cfg(target_os = "windows")]
 use crate::utils::autostart as startup_shortcut;
 use crate::{
-    config::verge::AutoLaunchMethod,
-    config::{Config, IVerge},
+    config::{AutoLaunchMethod, Config, IVerge},
     core::{handle::Handle, EventDrivenProxyManager},
-    logging, logging_error,
-    utils::logging::Type,
+    logging,
 };
 use anyhow::{anyhow, Result};
 use once_cell::sync::OnceCell;
@@ -296,37 +294,39 @@ impl Sysopt {
             .latest()
             .auto_launch_method
             .unwrap_or_default();
-        #[cfg(target_os = "windows")]
-        {
-            return match method {
-                AutoLaunchMethod::Plugin => match self.get_plugin_launch_status() {
-                    Ok(true) => Ok(true),
-                    Ok(false) => {
-                        // Gracefully detect legacy shortcut state for users migrating from the old method.
-                        if let Ok(shortcut_enabled) = self.get_shortcut_launch_status() {
-                            if shortcut_enabled {
-                                log::info!(
-                                    target: "app",
-                                    "Plugin autostart disabled but legacy shortcut detected"
-                                );
-                                return Ok(true);
-                            }
-                        }
-                        Ok(false)
-                    }
-                    Err(e) => self.get_shortcut_launch_status_with_log(e),
-                },
-                AutoLaunchMethod::Shortcut => self.get_shortcut_launch_status().or_else(|e| {
-                    log::warn!(
-                        target: "app",
-                        "Failed to check shortcut status: {e}, falling back to plugin status"
-                    );
-                    self.get_plugin_launch_status()
-                }),
-            };
-        }
 
-        self.get_plugin_launch_status()
+        #[cfg(target_os = "windows")]
+        let status = match method {
+            AutoLaunchMethod::Plugin => match self.get_plugin_launch_status() {
+                Ok(true) => Ok(true),
+                Ok(false) => {
+                    // Gracefully detect legacy shortcut state for users migrating from the old method.
+                    if let Ok(shortcut_enabled) = self.get_shortcut_launch_status() {
+                        if shortcut_enabled {
+                            log::info!(
+                                target: "app",
+                                "Plugin autostart disabled but legacy shortcut detected"
+                            );
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                }
+                Err(e) => self.get_shortcut_launch_status_with_log(e),
+            },
+            AutoLaunchMethod::Shortcut => self.get_shortcut_launch_status().or_else(|e| {
+                log::warn!(
+                    target: "app",
+                    "Failed to check shortcut status: {e}, falling back to plugin status"
+                );
+                self.get_plugin_launch_status()
+            }),
+        };
+
+        #[cfg(not(target_os = "windows"))]
+        let status = self.get_plugin_launch_status();
+
+        status
     }
 
     fn set_plugin_autostart(&self, is_enable: bool) -> Result<()> {
