@@ -533,7 +533,7 @@ const Layout = () => {
 
   return (
     <SWRConfig value={{ errorRetryCount: 3 }}>
-      <SidebarProvider defaultOpen>
+      <SidebarProvider defaultOpen={false}>
         <AppLayout />
         {isUpdateDevToolsEnabled ? <UpdateDevPanel /> : null}
         <Toaster />
