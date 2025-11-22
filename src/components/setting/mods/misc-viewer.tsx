@@ -8,6 +8,7 @@ import { DialogRef, Switch } from "@/components/base";
 import { TooltipIcon } from "@/components/base/base-tooltip-icon";
 import { showNotice } from "@/services/noticeService";
 import { Button } from "@/components/ui/button";
+import getSystem from "@/utils/get-system";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +34,26 @@ import {
   ArchiveRestore,
   Link as LinkIcon,
   Timer,
+  PlugZap,
 } from "lucide-react";
+
+type AutoLaunchMethod = "plugin" | "shortcut";
+
+type MiscValues = {
+  appLogLevel: string;
+  autoCloseConnection: boolean;
+  autoCheckUpdate: boolean;
+  enableBuiltinEnhanced: boolean;
+  proxyLayoutColumn: number;
+  defaultLatencyTest: string;
+  autoLogClean: 0 | 1 | 2 | 3 | 4;
+  defaultLatencyTimeout: number;
+  autoLaunchMethod: AutoLaunchMethod;
+};
+
+const normalizeAutoLaunchMethod = (
+  method?: string | null,
+): AutoLaunchMethod => (method === "shortcut" ? "shortcut" : "plugin");
 
 interface Props {}
 
@@ -76,9 +96,10 @@ const LabelWithIcon = ({
 export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
   const { t } = useTranslation();
   const { verge, patchVerge } = useVerge();
+  const isWindows = getSystem() === "windows";
 
   const [open, setOpen] = useState(false);
-  const [values, setValues] = useState({
+  const [values, setValues] = useState<MiscValues>({
     appLogLevel: "warn",
     autoCloseConnection: true,
     autoCheckUpdate: true,
@@ -87,6 +108,7 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     defaultLatencyTest: "",
     autoLogClean: 2,
     defaultLatencyTimeout: 10000,
+    autoLaunchMethod: "plugin",
   });
 
   useImperativeHandle(ref, () => ({
@@ -101,6 +123,9 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         defaultLatencyTest: verge?.default_latency_test || "",
         autoLogClean: verge?.auto_log_clean || 0,
         defaultLatencyTimeout: verge?.default_latency_timeout || 10000,
+        autoLaunchMethod: normalizeAutoLaunchMethod(
+          verge?.auto_launch_method ?? null,
+        ),
       });
     },
     close: () => setOpen(false),
@@ -108,16 +133,22 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
 
   const onSave = useLockFn(async () => {
     try {
-      await patchVerge({
-        app_log_level: values.appLogLevel as any,
+      const payload: Partial<IVergeConfig> = {
+        app_log_level: values.appLogLevel,
         auto_close_connection: values.autoCloseConnection,
         auto_check_update: values.autoCheckUpdate,
         enable_builtin_enhanced: values.enableBuiltinEnhanced,
         proxy_layout_column: Number(values.proxyLayoutColumn),
         default_latency_test: values.defaultLatencyTest,
         default_latency_timeout: Number(values.defaultLatencyTimeout),
-        auto_log_clean: values.autoLogClean as any,
-      });
+        auto_log_clean: values.autoLogClean,
+      };
+
+      if (isWindows) {
+        payload.auto_launch_method = values.autoLaunchMethod;
+      }
+
+      await patchVerge(payload);
       setOpen(false);
       showNotice("success", t("Saved Successfully"));
     } catch (err: any) {
@@ -125,7 +156,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
     }
   });
 
-  const handleValueChange = (key: keyof typeof values, value: any) => {
+  const handleValueChange = <K extends keyof MiscValues>(
+    key: K,
+    value: MiscValues[K],
+  ) => {
     setValues((v) => ({ ...v, [key]: value }));
   };
 
@@ -184,6 +218,37 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             />
           </SettingRow>
 
+          {isWindows && (
+            <SettingRow
+              label={
+                <LabelWithIcon
+                  icon={PlugZap}
+                  text={t("Auto Launch Method")}
+                />
+              }
+              extra={<TooltipIcon tooltip={t("Auto Launch Method Info")} />}
+            >
+              <Select
+                value={values.autoLaunchMethod}
+                onValueChange={(v) =>
+                  handleValueChange("autoLaunchMethod", v as AutoLaunchMethod)
+                }
+              >
+                <SelectTrigger className="w-48 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="plugin">
+                    {t("Auto Launch Method Plugin")}
+                  </SelectItem>
+                  <SelectItem value="shortcut">
+                    {t("Auto Launch Method Shortcut")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </SettingRow>
+          )}
+
           <SettingRow
             label={
               <LabelWithIcon icon={Zap} text={t("Enable Builtin Enhanced")} />
@@ -231,7 +296,10 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
             <Select
               value={String(values.autoLogClean)}
               onValueChange={(v) =>
-                handleValueChange("autoLogClean", Number(v))
+                handleValueChange(
+                  "autoLogClean",
+                  Number(v) as MiscValues["autoLogClean"],
+                )
               }
             >
               <SelectTrigger className="w-48 h-8">

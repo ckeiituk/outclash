@@ -7,6 +7,19 @@ use anyhow::Result;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AutoLaunchMethod {
+    Plugin,
+    Shortcut,
+}
+
+impl Default for AutoLaunchMethod {
+    fn default() -> Self {
+        AutoLaunchMethod::Plugin
+    }
+}
+
 /// ### `verge.yaml` schema
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 pub struct IVerge {
@@ -61,6 +74,9 @@ pub struct IVerge {
 
     /// can the app auto startup
     pub enable_auto_launch: Option<bool>,
+
+    /// preferred auto launch method on supported platforms
+    pub auto_launch_method: Option<AutoLaunchMethod>,
 
     /// not show the window on launch
     pub enable_silent_start: Option<bool>,
@@ -373,6 +389,7 @@ impl IVerge {
             sysproxy_tray_icon: Some(false),
             tun_tray_icon: Some(false),
             enable_auto_launch: Some(false),
+            auto_launch_method: Some(AutoLaunchMethod::Plugin),
             enable_silent_start: Some(false),
             enable_hover_jump_navigator: Some(true),
             enable_system_proxy: Some(false),
@@ -452,6 +469,7 @@ impl IVerge {
 
         patch!(enable_tun_mode);
         patch!(enable_auto_launch);
+        patch!(auto_launch_method);
         patch!(enable_silent_start);
         patch!(enable_hover_jump_navigator);
         patch!(enable_random_port);
@@ -552,6 +570,7 @@ pub struct IVergeResponse {
     pub tun_tray_icon: Option<bool>,
     pub enable_tun_mode: Option<bool>,
     pub enable_auto_launch: Option<bool>,
+    pub auto_launch_method: Option<AutoLaunchMethod>,
     pub enable_silent_start: Option<bool>,
     pub enable_system_proxy: Option<bool>,
     pub enable_proxy_guard: Option<bool>,
@@ -626,6 +645,7 @@ impl From<IVerge> for IVergeResponse {
             tun_tray_icon: verge.tun_tray_icon,
             enable_tun_mode: verge.enable_tun_mode,
             enable_auto_launch: verge.enable_auto_launch,
+            auto_launch_method: verge.auto_launch_method,
             enable_silent_start: verge.enable_silent_start,
             enable_system_proxy: verge.enable_system_proxy,
             enable_proxy_guard: verge.enable_proxy_guard,

@@ -1,12 +1,13 @@
 #[cfg(target_os = "windows")]
 use crate::utils::autostart as startup_shortcut;
 use crate::{
+    config::verge::AutoLaunchMethod,
     config::{Config, IVerge},
     core::{handle::Handle, EventDrivenProxyManager},
     logging, logging_error,
     utils::logging::Type,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
 #[cfg(not(target_os = "windows"))]
@@ -249,77 +250,136 @@ impl Sysopt {
     pub fn update_launch(&self) -> Result<()> {
         let enable_auto_launch = { Config::verge().latest().enable_auto_launch };
         let is_enable = enable_auto_launch.unwrap_or(false);
-        logging!(info, true, "Setting auto-launch state to: {:?}", is_enable);
+        let method = Config::verge()
+            .latest()
+            .auto_launch_method
+            .unwrap_or_default();
+        logging!(
+            info,
+            true,
+            "Setting auto-launch state to: {:?} via {:?}",
+            is_enable,
+            method
+        );
 
-        // 首先尝试使用快捷方式方法
         #[cfg(target_os = "windows")]
         {
-            if is_enable {
-                if let Err(e) = startup_shortcut::create_shortcut() {
-                    log::error!(target: "app", "Failed to create startup shortcut: {}", e);
-                    // 如果快捷方式创建失败，回退到原来的方法
-                    self.try_original_autostart_method(is_enable);
-                } else {
-                    return Ok(());
+            match method {
+                AutoLaunchMethod::Plugin => {
+                    self.set_plugin_autostart(is_enable)?;
+                    // Prevent double registration if the shortcut was previously enabled.
+                    if let Err(e) = self.set_shortcut_autostart(false) {
+                        log::debug!(target: "app", "Shortcut cleanup skipped: {e}");
+                    }
                 }
-            } else if let Err(e) = startup_shortcut::remove_shortcut() {
-                log::error!(target: "app", "Failed to remove startup shortcut: {}", e);
-                self.try_original_autostart_method(is_enable);
-            } else {
-                return Ok(());
+                AutoLaunchMethod::Shortcut => {
+                    self.set_shortcut_autostart(is_enable)?;
+                    // Keep plugin state disabled to avoid duplicate startup entries.
+                    if let Err(e) = self.set_plugin_autostart(false) {
+                        log::debug!(target: "app", "Plugin autostart cleanup skipped: {e}");
+                    }
+                }
             }
+            return Ok(());
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            // 非Windows平台使用原来的方法
-            self.try_original_autostart_method(is_enable);
-        }
-
-        Ok(())
-    }
-
-    /// 尝试使用原来的自启动方法
-    fn try_original_autostart_method(&self, is_enable: bool) {
-        let app_handle = Handle::global().app_handle().unwrap();
-        let autostart_manager = app_handle.autolaunch();
-
-        if is_enable {
-            logging_error!(Type::System, true, "{:?}", autostart_manager.enable());
-        } else {
-            logging_error!(Type::System, true, "{:?}", autostart_manager.disable());
+            // Non-Windows platforms rely solely on the plugin autostart.
+            self.set_plugin_autostart(is_enable)
         }
     }
 
     /// 获取当前自启动的实际状态
     pub fn get_launch_status(&self) -> Result<bool> {
-        // 首先尝试检查快捷方式是否存在
+        let method = Config::verge()
+            .latest()
+            .auto_launch_method
+            .unwrap_or_default();
         #[cfg(target_os = "windows")]
         {
-            match startup_shortcut::is_shortcut_enabled() {
-                Ok(enabled) => {
-                    log::info!(target: "app", "Shortcut auto-launch state: {}", enabled);
-                    return Ok(enabled);
-                }
-                Err(e) => {
-                    log::error!(target: "app", "Failed to check shortcut, falling back to original method: {}", e);
-                }
-            }
+            return match method {
+                AutoLaunchMethod::Plugin => match self.get_plugin_launch_status() {
+                    Ok(true) => Ok(true),
+                    Ok(false) => {
+                        // Gracefully detect legacy shortcut state for users migrating from the old method.
+                        if let Ok(shortcut_enabled) = self.get_shortcut_launch_status() {
+                            if shortcut_enabled {
+                                log::info!(
+                                    target: "app",
+                                    "Plugin autostart disabled but legacy shortcut detected"
+                                );
+                                return Ok(true);
+                            }
+                        }
+                        Ok(false)
+                    }
+                    Err(e) => self.get_shortcut_launch_status_with_log(e),
+                },
+                AutoLaunchMethod::Shortcut => self.get_shortcut_launch_status().or_else(|e| {
+                    log::warn!(
+                        target: "app",
+                        "Failed to check shortcut status: {e}, falling back to plugin status"
+                    );
+                    self.get_plugin_launch_status()
+                }),
+            };
         }
 
-        // 回退到原来的方法
+        self.get_plugin_launch_status()
+    }
+
+    fn set_plugin_autostart(&self, is_enable: bool) -> Result<()> {
+        let app_handle = Handle::global().app_handle().unwrap();
+        let autostart_manager = app_handle.autolaunch();
+
+        if is_enable {
+            autostart_manager
+                .enable()
+                .map_err(|e| anyhow!("Failed to enable plugin autostart: {e}"))
+        } else {
+            autostart_manager
+                .disable()
+                .map_err(|e| anyhow!("Failed to disable plugin autostart: {e}"))
+        }
+    }
+
+    fn get_plugin_launch_status(&self) -> Result<bool> {
         let app_handle = Handle::global().app_handle().unwrap();
         let autostart_manager = app_handle.autolaunch();
 
         match autostart_manager.is_enabled() {
             Ok(status) => {
-                log::info!(target: "app", "Auto launch status: {status}");
+                log::info!(target: "app", "Plugin auto-launch status: {status}");
                 Ok(status)
             }
             Err(e) => {
-                log::error!(target: "app", "Failed to get auto launch status: {e}");
-                Err(anyhow::anyhow!("Failed to get auto launch status: {}", e))
+                log::error!(target: "app", "Failed to get plugin auto launch status: {e}");
+                Err(anyhow!("Failed to get plugin auto launch status: {e}"))
             }
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn set_shortcut_autostart(&self, is_enable: bool) -> Result<()> {
+        if is_enable {
+            startup_shortcut::create_shortcut()
+        } else {
+            startup_shortcut::remove_shortcut()
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn get_shortcut_launch_status(&self) -> Result<bool> {
+        startup_shortcut::is_shortcut_enabled()
+    }
+
+    #[cfg(target_os = "windows")]
+    fn get_shortcut_launch_status_with_log(&self, previous_error: anyhow::Error) -> Result<bool> {
+        log::warn!(
+            target: "app",
+            "Failed to check plugin status: {previous_error}, checking shortcut state instead"
+        );
+        self.get_shortcut_launch_status()
     }
 }

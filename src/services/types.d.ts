@@ -749,6 +749,7 @@ interface IVergeConfig {
   enable_auto_light_weight_mode?: boolean;
   auto_light_weight_minutes?: number;
   enable_auto_launch?: boolean;
+  auto_launch_method?: "plugin" | "shortcut";
   enable_silent_start?: boolean;
   enable_system_proxy?: boolean;
   enable_global_hotkey?: boolean;

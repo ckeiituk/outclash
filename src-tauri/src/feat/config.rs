@@ -64,6 +64,7 @@ pub async fn patch_verge(patch: IVerge, not_save_file: bool) -> Result<()> {
 
     let tun_mode = patch.enable_tun_mode;
     let auto_launch = patch.enable_auto_launch;
+    let auto_launch_method = patch.auto_launch_method;
     let system_proxy = patch.enable_system_proxy;
     let pac = patch.proxy_auto_config;
     let pac_content = patch.pac_file_content;
@@ -124,7 +125,7 @@ pub async fn patch_verge(patch: IVerge, not_save_file: bool) -> Result<()> {
         {
             update_flags |= UpdateFlags::RestartCore as i32;
         }
-        if auto_launch.is_some() {
+        if auto_launch.is_some() || auto_launch_method.is_some() {
             update_flags |= UpdateFlags::Launch as i32;
         }
 
