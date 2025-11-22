@@ -7,7 +7,7 @@ use anyhow::Result;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum AutoLaunchMethod {
     Plugin,
