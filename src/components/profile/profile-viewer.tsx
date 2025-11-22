@@ -76,6 +76,13 @@ export const ProfileViewer = forwardRef<ProfileViewerRef, Props>(
     const [isImporting, setIsImporting] = useState(false);
     const [loading, setLoading] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState("default");
+    const isMountedRef = useRef(true);
+
+    useEffect(() => {
+      return () => {
+        isMountedRef.current = false;
+      };
+    }, []);
 
     const form = useForm<IProfileItem>({
       defaultValues: {
@@ -165,9 +172,9 @@ export const ProfileViewer = forwardRef<ProfileViewerRef, Props>(
           await importProfile(importUrl);
           showNotice("success", t("Profile Imported Successfully"));
         }
-        props.onChange();
         await enhanceProfiles();
-        setOpen(false);
+        await props.onChange();
+        if (isMountedRef.current) setOpen(false);
       } catch (err: any) {
         const errorMessage =
           typeof err === "string" ? err : err.message || String(err);
@@ -187,9 +194,9 @@ export const ProfileViewer = forwardRef<ProfileViewerRef, Props>(
               self_proxy: true,
             });
             showNotice("success", t("Profile Imported with Clash proxy"));
-            props.onChange();
             await enhanceProfiles();
-            setOpen(false);
+            await props.onChange();
+            if (isMountedRef.current) setOpen(false);
           } catch (retryErr: any) {
             showNotice(
               "error",
@@ -200,7 +207,7 @@ export const ProfileViewer = forwardRef<ProfileViewerRef, Props>(
           showNotice("error", errorMessage);
         }
       } finally {
-        setIsImporting(false);
+        if (isMountedRef.current) setIsImporting(false);
       }
     });
 
@@ -287,8 +294,8 @@ export const ProfileViewer = forwardRef<ProfileViewerRef, Props>(
             }
 
             showNotice("success", t("Profile Created Successfully"));
-            setOpen(false);
-            props.onChange(true);
+            await props.onChange(true);
+            if (isMountedRef.current) setOpen(false);
             return;
           } else {
             if (!form.uid) throw new Error("UID not found");
@@ -296,12 +303,12 @@ export const ProfileViewer = forwardRef<ProfileViewerRef, Props>(
             showNotice("success", t("Profile Updated Successfully"));
           }
 
-          setOpen(false);
-          props.onChange(wasCurrent);
+          await props.onChange(wasCurrent);
+          if (isMountedRef.current) setOpen(false);
         } catch (err: any) {
           showNotice("error", err.message || err.toString());
         } finally {
-          setLoading(false);
+          if (isMountedRef.current) setLoading(false);
         }
       }),
     );
