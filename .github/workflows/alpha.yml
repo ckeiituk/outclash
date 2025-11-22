@@ -25,6 +25,7 @@ env:
   TAG_CHANNEL: Alpha
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
+  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
 concurrency:
   group: "${{ github.workflow }} - ${{ github.head_ref || github.ref }}"
 
@@ -328,10 +329,17 @@ jobs:
       - name: Verify version files
         run: pnpm verify-version
 
+      - name: Skip macOS build (signing secrets missing)
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
+        run: |
+          echo "Skipping macOS build: signing secrets missing."
+          exit 0
+
       # - name: Release ${{ env.TAG_CHANNEL }} Version
       #   run: pnpm release-version ${{ env.TAG_NAME }}
 
       - name: Tauri build
+        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"

@@ -6,6 +6,7 @@ permissions: write-all
 env:
   CARGO_INCREMENTAL: 0
   RUST_BACKTRACE: short
+  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
 concurrency:
   # only allow per workflow per commit (and not pr) to run at a time
   group: "${{ github.workflow }} - ${{ github.head_ref || github.ref }}"
@@ -68,7 +69,14 @@ jobs:
       - name: Verify version files
         run: pnpm verify-version
 
+      - name: Skip macOS build (signing secrets missing)
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
+        run: |
+          echo "Skipping macOS build: signing secrets missing."
+          exit 0
+
       - name: Tauri build
+        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         uses: tauri-apps/tauri-action@v0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
@@ -86,7 +94,7 @@ jobs:
           args: --target ${{ matrix.target }} -b ${{ matrix.bundle }}
 
       - name: Upload Artifacts
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
