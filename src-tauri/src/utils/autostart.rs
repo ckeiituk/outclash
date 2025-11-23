@@ -5,6 +5,15 @@ use log::info;
 
 #[cfg(target_os = "windows")]
 use std::{fs, os::windows::process::CommandExt, path::Path, path::PathBuf};
+#[cfg(target_os = "windows")]
+use tauri::AppHandle;
+#[cfg(target_os = "windows")]
+use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+#[cfg(target_os = "windows")]
+use winreg::RegKey;
+
+#[cfg(target_os = "windows")]
+const RUN_REGISTRY_KEY: &str = r"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run";
 
 /// Windows 下的开机启动文件夹路径
 #[cfg(target_os = "windows")]
@@ -107,6 +116,33 @@ pub fn is_shortcut_enabled() -> Result<bool> {
     let shortcut_path = startup_dir.join("OutClash.lnk");
 
     Ok(shortcut_path.exists())
+}
+
+/// Ensure the plugin autostart entry uses a quoted executable path so
+/// spaces in installation directories (e.g., Program Files) don't break startup.
+#[cfg(target_os = "windows")]
+pub fn ensure_plugin_run_entry_is_quoted(app_handle: &AppHandle) -> Result<()> {
+    let exe_path = get_exe_path()?;
+    let quoted_exe = format!("\"{}\"", exe_path.display());
+
+    let (run_key, _) = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey(RUN_REGISTRY_KEY)
+        .map_err(|e| anyhow!("Failed to open Run registry key: {e}"))?;
+
+    let value_name = app_handle.package_info().name.clone();
+    let existing_value: Option<String> = run_key.get_value(&value_name).ok();
+    let args_suffix = existing_value
+        .as_deref()
+        .and_then(|value| value.strip_prefix(&format!("{} ", exe_path.display())))
+        .filter(|args| !args.is_empty())
+        .map(|args| format!(" {args}"))
+        .unwrap_or_default();
+
+    run_key
+        .set_value(&value_name, &(quoted_exe + &args_suffix))
+        .map_err(|e| anyhow!("Failed to update Run registry entry: {e}"))?;
+
+    Ok(())
 }
 
 // 非 Windows 平台使用的空方法

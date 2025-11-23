@@ -13,8 +13,8 @@ pub fn use_script(
     // Run script in a worker thread with timeout to avoid blocking profile updates.
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
-      let result = run_script(script, config, name);
-      let _ = tx.send(result);
+        let result = run_script(script, config, name);
+        let _ = tx.send(result);
     });
 
     match rx.recv_timeout(SCRIPT_TIMEOUT) {

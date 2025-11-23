@@ -1,5 +1,5 @@
 #[cfg(target_os = "windows")]
-use crate::utils::autostart as startup_shortcut;
+use crate::utils::autostart::{self as startup_shortcut, ensure_plugin_run_entry_is_quoted};
 use crate::{
     config::{AutoLaunchMethod, Config, IVerge},
     core::{handle::Handle, EventDrivenProxyManager},
@@ -336,7 +336,13 @@ impl Sysopt {
         if is_enable {
             autostart_manager
                 .enable()
-                .map_err(|e| anyhow!("Failed to enable plugin autostart: {e}"))
+                .map_err(|e| anyhow!("Failed to enable plugin autostart: {e}"))?;
+            #[cfg(target_os = "windows")]
+            {
+                ensure_plugin_run_entry_is_quoted(&app_handle)
+                    .map_err(|e| anyhow!("Failed to normalize plugin autostart entry: {e}"))?;
+            }
+            Ok(())
         } else {
             autostart_manager
                 .disable()
