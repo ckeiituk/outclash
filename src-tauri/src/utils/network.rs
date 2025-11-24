@@ -327,14 +327,14 @@ impl NetworkManager {
         } else {
             use crate::utils::resolve::VERSION;
 
-            // Keep 'clash-meta/' prefix so subscription servers treat us as Clash Meta,
-            // but clearly brand the client and version in a single token.
-            // Example: "clash-meta/outclash v0.2.5".
+            // Keep 'clash-meta/' prefix to ensure subscription servers return YAML
+            // but append our client identifier for uniqueness.
+            // Example: "clash-meta/v0.2.0 OutClash/0.2.0"
             let app_ver = VERSION
                 .get()
                 .cloned()
                 .unwrap_or_else(|| "unknown".to_string());
-            let ua = format!("clash-meta/outclash v{app_ver}");
+            let ua = format!("clash-meta/v{app_ver} OutClash/{app_ver}");
 
             builder = builder.user_agent(ua);
         }

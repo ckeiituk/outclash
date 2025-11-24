@@ -4883,7 +4883,7 @@ dependencies = [
 
 [[package]]
 name = "outclash"
-version = "0.2.4"
+version = "0.2.6"
 dependencies = [
  "ab_glyph",
  "aes-gcm",
