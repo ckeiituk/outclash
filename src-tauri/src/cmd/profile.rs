@@ -15,26 +15,8 @@ use std::time::Duration;
 use tokio::sync::{Mutex, RwLock};
 use url::Url;
 
-// 全局互斥锁防止并发配置更新
-static PROFILE_UPDATE_MUTEX: Mutex<()> = Mutex::const_new(());
+// Locks and request sequencing removed to prevent deadlocks
 
-// 全局请求序列号跟踪，用于避免队列化执行
-static CURRENT_REQUEST_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-
-static CURRENT_PROCESSING_PROFILE: RwLock<Option<String>> = RwLock::const_new(None);
-
-/// 清理配置处理状态
-async fn cleanup_processing_state(sequence: u64, reason: &str) {
-    *CURRENT_PROCESSING_PROFILE.write().await = None;
-    logging!(
-        info,
-        Type::Cmd,
-        true,
-        "{}，Cleanup status, serial number: {}",
-        reason,
-        sequence
-    );
-}
 
 /// 获取配置文件避免锁竞争
 #[tauri::command]
@@ -297,72 +279,18 @@ pub async fn delete_profile(index: String) -> CmdResult {
 /// 修改profiles的配置
 #[tauri::command]
 pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
-    // 为当前请求分配序列号
-    let current_sequence = CURRENT_REQUEST_SEQUENCE.fetch_add(1, Ordering::SeqCst) + 1;
+    logging!(
+        info,
+        Type::Cmd,
+        true,
+        "Starting to modify profiles"
+    );
+
+    // Save current profile to restore if validation fails
+    let current_profile = Config::profiles().latest().current.clone();
     let target_profile = profiles.current.clone();
 
-    logging!(
-        info,
-        Type::Cmd,
-        true,
-        "Starting to modify profiles, sequence: {}, target profile: {:?}",
-        current_sequence,
-        target_profile
-    );
-
-    let mutex_result =
-        tokio::time::timeout(Duration::from_millis(100), PROFILE_UPDATE_MUTEX.lock()).await;
-
-    let _guard = match mutex_result {
-        Ok(guard) => guard,
-        Err(_) => {
-            let latest_sequence = CURRENT_REQUEST_SEQUENCE.load(Ordering::SeqCst);
-            if current_sequence < latest_sequence {
-                logging!(
-                    info,
-                    Type::Cmd,
-                    true,
-                    "Newer request detected (seq: {} < {}), abandoning current",
-                    current_sequence,
-                    latest_sequence
-                );
-                return Ok(false);
-            }
-            logging!(
-                info,
-                Type::Cmd,
-                true,
-                "Force acquiring lock to process latest request: {}",
-                current_sequence
-            );
-            PROFILE_UPDATE_MUTEX.lock().await
-        }
-    };
-
-    let latest_sequence = CURRENT_REQUEST_SEQUENCE.load(Ordering::SeqCst);
-    if current_sequence < latest_sequence {
-        logging!(
-            info,
-            Type::Cmd,
-            true,
-            "After acquiring lock, found newer request (seq: {} < {}), abandoning current",
-            current_sequence,
-            latest_sequence
-        );
-        return Ok(false);
-    }
-
-    // 保存当前配置，以便在验证失败时恢复
-    let current_profile = Config::profiles().latest().current.clone();
-    logging!(
-        info,
-        Type::Cmd,
-        true,
-        "Current profile: {:?}",
-        current_profile
-    );
-
-    // 如果要切换配置，先检查目标配置文件是否有语法错误
+    // Check syntax if switching profile
     if let Some(new_profile) = profiles.current.as_ref() {
         if current_profile.as_ref() != Some(new_profile) {
             logging!(
@@ -373,7 +301,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                 new_profile
             );
 
-            // 获取目标配置文件路径
+            // Get target profile path
             let config_file_result = {
                 let profiles_config = Config::profiles();
                 let profiles_data = profiles_config.latest();
@@ -399,10 +327,10 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                 }
             };
 
-            // 如果获取到文件路径，检查YAML语法
+            // If path found, check YAML syntax
             if let Some(file_path) = config_file_result {
                 if !file_path.exists() {
-                    logging!(
+                     logging!(
                         error,
                         Type::Cmd,
                         true,
@@ -416,7 +344,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                     return Ok(false);
                 }
 
-                // 超时保护
+                // Timeout for read/parse
                 let file_read_result = tokio::time::timeout(
                     Duration::from_secs(5),
                     tokio::fs::read_to_string(&file_path),
@@ -488,138 +416,65 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
         }
     }
 
-    // 检查请求有效性
-    let latest_sequence = CURRENT_REQUEST_SEQUENCE.load(Ordering::SeqCst);
-    if current_sequence < latest_sequence {
-        logging!(
-            info,
-            Type::Cmd,
-            true,
-            "Found newer request before core operation (seq: {} < {}), abandoning current",
-            current_sequence,
-            latest_sequence
-        );
-        return Ok(false);
-    }
-
-    if let Some(ref profile) = target_profile {
-        *CURRENT_PROCESSING_PROFILE.write().await = Some(profile.clone());
-        logging!(
-            info,
-            Type::Cmd,
-            true,
-            "Set current processing profile: {}, serial number: {}",
-            profile,
-            current_sequence
-        );
-    }
-
-    // 更新profiles配置
-    logging!(
-        info,
-        Type::Cmd,
-        true,
-        "Updating draft profiles, sequence: {}",
-        current_sequence
-    );
-
-    let current_value = profiles.current.clone();
-
+    // Update draft profiles
     let _ = Config::profiles().draft().patch_config(profiles);
 
-    // 在调用内核前再次验证请求有效性
-    let latest_sequence = CURRENT_REQUEST_SEQUENCE.load(Ordering::SeqCst);
-    if current_sequence < latest_sequence {
-        logging!(
-            info,
-            Type::Cmd,
-            true,
-            "Detect updated requests before kernel interaction (sequence number: {} < {}) and abandon the current request.",
-            current_sequence,
-            latest_sequence
-        );
-        Config::profiles().discard();
-        return Ok(false);
-    }
-
-    // 为配置更新添加超时保护
+    // Update core config with timeout
     logging!(
         info,
         Type::Cmd,
         true,
-        "Starting kernel config update, sequence: {}",
-        current_sequence
+        "Starting kernel config update"
     );
+
     let update_result = tokio::time::timeout(
-        Duration::from_secs(30), // 30秒超时
+        Duration::from_secs(30),
         CoreManager::global().update_config(),
     )
     .await;
 
-    // 更新配置并进行验证
     match update_result {
         Ok(Ok((true, _))) => {
-            // 内核操作完成后再次检查请求有效性
-            let latest_sequence = CURRENT_REQUEST_SEQUENCE.load(Ordering::SeqCst);
-            if current_sequence < latest_sequence {
-                logging!(
-                    info,
-                    Type::Cmd,
-                    true,
-                    "After kernel operation, an updated request was found (sequence number: {} < {}), ignore the current result.",
-                    current_sequence,
-                    latest_sequence
-                );
-                Config::profiles().discard();
-                return Ok(false);
-            }
-
             logging!(
                 info,
                 Type::Cmd,
                 true,
-                "Configuration update successful, serial number: {}",
-                current_sequence
+                "Configuration update successful"
             );
             Config::profiles().apply();
             handle::Handle::refresh_clash();
 
-            // 强制刷新代理缓存，确保profile切换后立即获取最新节点数据
+            // Refresh proxies
             crate::process::AsyncHandler::spawn(|| async move {
                 if let Err(e) = super::proxy::force_refresh_proxies().await {
                     log::warn!(target: "app", "Force refresh proxy cache failed: {e}");
                 }
             });
 
+            // Update UI/Tray
             crate::process::AsyncHandler::spawn(|| async move {
                 if let Err(e) = Tray::global().update_tooltip() {
                     log::warn!(target: "app", "Async tray tooltip update failed: {e}");
                 }
-
                 if let Err(e) = Tray::global().update_menu() {
                     log::warn!(target: "app", "Async tray menu update failed: {e}");
                 }
-
-                // 保存配置文件
                 if let Err(e) = Config::profiles().data().save_file() {
                     log::warn!(target: "app", "Async save profiles file failed: {e}");
                 }
             });
 
-            // 立即通知前端配置变更
-            if let Some(current) = &current_value {
+            // Notify frontend
+            if let Some(current) = target_profile {
                 logging!(
                     info,
                     Type::Cmd,
                     true,
-                    "Sending profile change event to frontend: {}, sequence: {}",
-                    current,
-                    current_sequence
+                    "Sending profile change event to frontend: {}",
+                    current
                 );
-                handle::Handle::notify_profile_changed(current.clone());
+                handle::Handle::notify_profile_changed(current);
             }
-
-            cleanup_processing_state(current_sequence, "Profile switch completed").await;
 
             Ok(true)
         }
@@ -632,7 +487,8 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                 error_msg
             );
             Config::profiles().discard();
-            // 如果验证失败，恢复到之前的配置
+
+            // Restore previous profile if validation failed
             if let Some(prev_profile) = current_profile {
                 logging!(
                     info,
@@ -645,7 +501,6 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                     current: Some(prev_profile),
                     items: None,
                 };
-                // 静默恢复，不触发验证
                 wrap_err!({ Config::profiles().draft().patch_config(restore_profiles) })?;
                 Config::profiles().apply();
 
@@ -663,11 +518,7 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                 );
             }
 
-            // 发送验证错误通知
             handle::Handle::notice_message("config_validate::error", &error_msg);
-
-            cleanup_processing_state(current_sequence, "Profile validation failed").await;
-
             Ok(false)
         }
         Ok(Err(e)) => {
@@ -675,51 +526,34 @@ pub async fn patch_profiles_config(profiles: IProfiles) -> CmdResult<bool> {
                 warn,
                 Type::Cmd,
                 true,
-                "Error occurred during update: {}, sequence: {}",
-                e,
-                current_sequence
+                "Error occurred during update: {}",
+                e
             );
             Config::profiles().discard();
             handle::Handle::notice_message("config_validate::boot_error", e.to_string());
-
-            cleanup_processing_state(current_sequence, "Update process error").await;
-
             Ok(false)
         }
         Err(_) => {
-            // 超时处理
-            let timeout_msg = "Profile update timed out (30s), possibly due to validation or kernel communication";
+            let timeout_msg = "Profile update timed out (30s)";
             logging!(
                 error,
                 Type::Cmd,
                 true,
-                "{}, sequence: {}",
-                timeout_msg,
-                current_sequence
+                "{}",
+                timeout_msg
             );
             Config::profiles().discard();
 
             if let Some(prev_profile) = current_profile {
-                logging!(
-                    info,
-                    Type::Cmd,
-                    true,
-                    "After timeout, attempting to restore previous profile: {}, sequence: {}",
-                    prev_profile,
-                    current_sequence
-                );
                 let restore_profiles = IProfiles {
                     current: Some(prev_profile),
                     items: None,
                 };
-                wrap_err!({ Config::profiles().draft().patch_config(restore_profiles) })?;
+                let _ = Config::profiles().draft().patch_config(restore_profiles);
                 Config::profiles().apply();
             }
 
             handle::Handle::notice_message("config_validate::timeout", timeout_msg);
-
-            cleanup_processing_state(current_sequence, "Profile update timeout").await;
-
             Ok(false)
         }
     }
