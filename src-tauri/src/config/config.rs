@@ -57,7 +57,7 @@ impl Config {
             .is_err()
         {
             let merge_item = PrfItem::from_merge(Some("Merge".to_string()))?;
-            Self::profiles().data_ref().append_item(merge_item.clone())?;
+            Self::profiles().data_mut().append_item(merge_item.clone())?;
         }
         if Self::profiles()
             .data_ref()
@@ -65,7 +65,7 @@ impl Config {
             .is_err()
         {
             let script_item = PrfItem::from_script(Some("Script".to_string()))?;
-            Self::profiles().data_ref().append_item(script_item.clone())?;
+            Self::profiles().data_mut().append_item(script_item.clone())?;
         }
         // 生成运行时配置
         if let Err(err) = Self::generate().await {

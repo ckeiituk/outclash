@@ -22,7 +22,7 @@ pub async fn patch_clash(patch: Mapping) -> Result<()> {
                 logging_error!(Type::Tray, true, tray::Tray::global().update_menu());
                 logging_error!(Type::Tray, true, tray::Tray::global().update_icon(None));
             }
-            Config::runtime().latest_ref().patch_config(patch);
+            Config::runtime().data_mut().patch_config(patch);
             CoreManager::global().update_config().await?;
         }
         handle::Handle::refresh_clash();

@@ -208,29 +208,29 @@ impl PrfItem {
 
         if merge.is_none() {
             let merge_item = PrfItem::from_merge(None)?;
-            Config::profiles().data_ref().append_item(merge_item.clone())?;
+            Config::profiles().data_mut().append_item(merge_item.clone())?;
             merge = merge_item.uid;
         }
         if script.is_none() {
             let script_item = PrfItem::from_script(None)?;
-            Config::profiles().data_ref().append_item(script_item.clone())?;
+            Config::profiles().data_mut().append_item(script_item.clone())?;
             script = script_item.uid;
         }
         if rules.is_none() {
             let rules_item = PrfItem::from_rules()?;
-            Config::profiles().data_ref().append_item(rules_item.clone())?;
+            Config::profiles().data_mut().append_item(rules_item.clone())?;
             rules = rules_item.uid;
         }
         if proxies.is_none() {
             let proxies_item = PrfItem::from_proxies()?;
             Config::profiles()
-                .data_ref()
+                .data_mut()
                 .append_item(proxies_item.clone())?;
             proxies = proxies_item.uid;
         }
         if groups.is_none() {
             let groups_item = PrfItem::from_groups()?;
-            Config::profiles().data_ref().append_item(groups_item.clone())?;
+            Config::profiles().data_mut().append_item(groups_item.clone())?;
             groups = groups_item.uid;
         }
         Ok(PrfItem {
@@ -469,29 +469,29 @@ impl PrfItem {
 
         if merge.is_none() {
             let merge_item = PrfItem::from_merge(None)?;
-            Config::profiles().data_ref().append_item(merge_item.clone())?;
+            Config::profiles().data_mut().append_item(merge_item.clone())?;
             merge = merge_item.uid;
         }
         if script.is_none() {
             let script_item = PrfItem::from_script(None)?;
-            Config::profiles().data_ref().append_item(script_item.clone())?;
+            Config::profiles().data_mut().append_item(script_item.clone())?;
             script = script_item.uid;
         }
         if rules.is_none() {
             let rules_item = PrfItem::from_rules()?;
-            Config::profiles().data_ref().append_item(rules_item.clone())?;
+            Config::profiles().data_mut().append_item(rules_item.clone())?;
             rules = rules_item.uid;
         }
         if proxies.is_none() {
             let proxies_item = PrfItem::from_proxies()?;
             Config::profiles()
-                .data_ref()
+                .data_mut()
                 .append_item(proxies_item.clone())?;
             proxies = proxies_item.uid;
         }
         if groups.is_none() {
             let groups_item = PrfItem::from_groups()?;
-            Config::profiles().data_ref().append_item(groups_item.clone())?;
+            Config::profiles().data_mut().append_item(groups_item.clone())?;
             groups = groups_item.uid;
         }
 

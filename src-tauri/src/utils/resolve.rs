@@ -798,7 +798,7 @@ pub async fn resolve_scheme(param: String) -> Result<()> {
                 match PrfItem::from_url(url.as_ref(), name, None, None).await {
                     Ok(item) => {
                         let uid = item.uid.clone().unwrap();
-                        let _ = wrap_err!(Config::profiles().data_ref().append_item(item));
+                        let _ = wrap_err!(Config::profiles().data_mut().append_item(item));
                         // If UI not ready yet, message will be queued and flushed on ready
                         handle::Handle::notice_message("import_sub_url::ok", uid);
                     }
@@ -834,7 +834,7 @@ async fn resolve_random_port_config() -> Result<()> {
 
     tokio::task::spawn_blocking(move || {
         let verge_config_accessor = Config::verge();
-        let mut verge_data = verge_config_accessor.data_ref();
+        let mut verge_data = verge_config_accessor.data_mut();
         verge_data.patch_config(IVerge {
             verge_mixed_port: Some(port_to_save),
             ..IVerge::default()
@@ -845,7 +845,7 @@ async fn resolve_random_port_config() -> Result<()> {
 
     tokio::task::spawn_blocking(move || {
         let clash_config_accessor = Config::clash(); // Extend lifetime of the accessor
-        let mut clash_data = clash_config_accessor.data_ref(); // Access within blocking task, made mutable
+        let mut clash_data = clash_config_accessor.data_mut(); // Access within blocking task, made mutable
         let mut mapping = Mapping::new();
         mapping.insert("mixed-port".into(), port_to_save.into());
         clash_data.patch_config(mapping);

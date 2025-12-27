@@ -1389,5 +1389,5 @@ pub async fn create_profile_from_share_link(link: String, template_name: String)
     )
     .map_err(|e| e.to_string())?;
 
-    wrap_err!(Config::profiles().data_ref().append_item(item))
+    wrap_err!(Config::profiles().data_mut().append_item(item))
 }

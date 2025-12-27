@@ -72,7 +72,7 @@ pub async fn update_profile(
                 Ok(item) => {
                     log::info!(target: "app", "[Subscription Update] Subscription config updated successfully");
                     let profiles = Config::profiles();
-                    let mut profiles = profiles.latest_ref();
+                    let mut profiles = profiles.data_mut();
                     profiles.update_item(uid.clone(), item)?;
 
                     let is_current = Some(uid.clone()) == profiles.get_current();
@@ -116,7 +116,7 @@ pub async fn update_profile(
 
                             // 更新到配置
                             let profiles = Config::profiles();
-                            let mut profiles = profiles.latest_ref();
+                            let mut profiles = profiles.data_mut();
                             profiles.update_item(uid.clone(), item.clone())?;
 
                             // 获取配置名称用于通知

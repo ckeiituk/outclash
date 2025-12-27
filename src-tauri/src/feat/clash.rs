@@ -68,7 +68,7 @@ pub fn change_clash_mode(mode: String) {
         match MihomoManager::global().patch_configs(json_value).await {
             Ok(_) => {
                 // 更新订阅
-                Config::clash().data_ref().patch_config(mapping);
+                Config::clash().data_mut().patch_config(mapping);
 
                 if Config::clash().data_ref().save_config().is_ok() {
                     handle::Handle::refresh_clash();
