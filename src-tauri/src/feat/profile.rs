@@ -42,7 +42,7 @@ pub async fn update_profile(
 
     let url_opt = {
         let profiles = Config::profiles();
-        let profiles = profiles.latest();
+        let profiles = profiles.latest_ref();
         let item = profiles.get_item(&uid)?;
         let is_remote = item.itype.as_ref().is_some_and(|s| s == "remote");
 
@@ -72,7 +72,7 @@ pub async fn update_profile(
                 Ok(item) => {
                     log::info!(target: "app", "[Subscription Update] Subscription config updated successfully");
                     let profiles = Config::profiles();
-                    let mut profiles = profiles.latest();
+                    let mut profiles = profiles.latest_ref();
                     profiles.update_item(uid.clone(), item)?;
 
                     let is_current = Some(uid.clone()) == profiles.get_current();
@@ -116,7 +116,7 @@ pub async fn update_profile(
 
                             // 更新到配置
                             let profiles = Config::profiles();
-                            let mut profiles = profiles.latest();
+                            let mut profiles = profiles.latest_ref();
                             profiles.update_item(uid.clone(), item.clone())?;
 
                             // 获取配置名称用于通知

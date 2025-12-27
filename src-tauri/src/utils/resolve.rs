@@ -266,9 +266,9 @@ pub async fn find_unused_port() -> Result<u16> {
         }
         Err(_) => {
             let port = Config::verge()
-                .latest()
+                .latest_ref()
                 .verge_mixed_port
-                .unwrap_or(Config::clash().data().get_mixed_port());
+                .unwrap_or(Config::clash().data_ref().get_mixed_port());
             log::warn!(target: "app", "use default port: {port}");
             Ok(port)
         }
@@ -324,7 +324,7 @@ pub async fn resolve_setup_async(app_handle: &AppHandle) {
         "Cleaning redundant profile files..."
     );
     let profiles = Config::profiles();
-    if let Err(e) = profiles.latest().auto_cleanup() {
+    if let Err(e) = profiles.latest_ref().auto_cleanup() {
         logging!(
             warn,
             Type::Setup,
@@ -385,7 +385,7 @@ pub async fn resolve_setup_async(app_handle: &AppHandle) {
     );
 
     // 创建窗口
-    let is_silent_start = { Config::verge().data().enable_silent_start }.unwrap_or(false);
+    let is_silent_start = { Config::verge().data_ref().enable_silent_start }.unwrap_or(false);
     #[cfg(target_os = "macos")]
     {
         if is_silent_start {
@@ -798,7 +798,7 @@ pub async fn resolve_scheme(param: String) -> Result<()> {
                 match PrfItem::from_url(url.as_ref(), name, None, None).await {
                     Ok(item) => {
                         let uid = item.uid.clone().unwrap();
-                        let _ = wrap_err!(Config::profiles().data().append_item(item));
+                        let _ = wrap_err!(Config::profiles().data_ref().append_item(item));
                         // If UI not ready yet, message will be queued and flushed on ready
                         handle::Handle::notice_message("import_sub_url::ok", uid);
                     }
@@ -817,12 +817,12 @@ pub async fn resolve_scheme(param: String) -> Result<()> {
 async fn resolve_random_port_config() -> Result<()> {
     let verge_config = Config::verge();
     let clash_config = Config::clash();
-    let enable_random_port = verge_config.latest().enable_random_port.unwrap_or(false);
+    let enable_random_port = verge_config.latest_ref().enable_random_port.unwrap_or(false);
 
     let default_port = verge_config
-        .latest()
+        .latest_ref()
         .verge_mixed_port
-        .unwrap_or(clash_config.data().get_mixed_port());
+        .unwrap_or(clash_config.data_ref().get_mixed_port());
 
     let port = if enable_random_port {
         find_unused_port().await.unwrap_or(default_port)
@@ -834,7 +834,7 @@ async fn resolve_random_port_config() -> Result<()> {
 
     tokio::task::spawn_blocking(move || {
         let verge_config_accessor = Config::verge();
-        let mut verge_data = verge_config_accessor.data();
+        let mut verge_data = verge_config_accessor.data_ref();
         verge_data.patch_config(IVerge {
             verge_mixed_port: Some(port_to_save),
             ..IVerge::default()
@@ -845,7 +845,7 @@ async fn resolve_random_port_config() -> Result<()> {
 
     tokio::task::spawn_blocking(move || {
         let clash_config_accessor = Config::clash(); // Extend lifetime of the accessor
-        let mut clash_data = clash_config_accessor.data(); // Access within blocking task, made mutable
+        let mut clash_data = clash_config_accessor.data_ref(); // Access within blocking task, made mutable
         let mut mapping = Mapping::new();
         mapping.insert("mixed-port".into(), port_to_save.into());
         clash_data.patch_config(mapping);

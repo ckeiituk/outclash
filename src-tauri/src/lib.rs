@@ -501,7 +501,7 @@ pub fn run() {
                         }
                         {
                             let is_enable_global_hotkey = Config::verge()
-                                .latest()
+                                .latest_ref()
                                 .enable_global_hotkey
                                 .unwrap_or(true);
                             if !is_enable_global_hotkey {
@@ -525,7 +525,7 @@ pub fn run() {
                         }
                         {
                             let is_enable_global_hotkey = Config::verge()
-                                .latest()
+                                .latest_ref()
                                 .enable_global_hotkey
                                 .unwrap_or(true);
                             if !is_enable_global_hotkey {

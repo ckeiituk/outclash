@@ -36,9 +36,9 @@ where
 
 pub fn run_once_auto_lightweight() {
     LightWeightState::default().run_once_time(|| {
-        let is_silent_start = Config::verge().data().enable_silent_start.unwrap_or(false);
+        let is_silent_start = Config::verge().data_ref().enable_silent_start.unwrap_or(false);
         let enable_auto = Config::verge()
-            .data()
+            .data_ref()
             .enable_auto_light_weight_mode
             .unwrap_or(false);
         if enable_auto && is_silent_start {
@@ -62,8 +62,8 @@ pub fn run_once_auto_lightweight() {
 pub fn auto_lightweight_mode_init() {
     if let Some(app_handle) = handle::Handle::global().app_handle() {
         let _ = app_handle.state::<Mutex<LightWeightState>>();
-        let is_silent_start = { Config::verge().data().enable_silent_start }.unwrap_or(false);
-        let enable_auto = { Config::verge().data().enable_auto_light_weight_mode }.unwrap_or(false);
+        let is_silent_start = { Config::verge().data_ref().enable_silent_start }.unwrap_or(false);
+        let enable_auto = { Config::verge().data_ref().enable_auto_light_weight_mode }.unwrap_or(false);
 
         if enable_auto && !is_silent_start {
             logging!(
@@ -245,7 +245,7 @@ fn cancel_window_close_listener() {
 fn setup_light_weight_timer() -> Result<()> {
     Timer::global().init()?;
     let once_by_minutes = Config::verge()
-        .latest()
+        .latest_ref()
         .auto_light_weight_minutes
         .unwrap_or(10);
 

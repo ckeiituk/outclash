@@ -146,9 +146,9 @@ impl NetworkManager {
 
            if client_guard.is_none() {
                let port = Config::verge()
-                   .latest()
+                   .latest_ref()
                    .verge_mixed_port
-                   .unwrap_or(Config::clash().data().get_mixed_port());
+                   .unwrap_or(Config::clash().data_ref().get_mixed_port());
 
                let proxy_scheme = format!("http://127.0.0.1:{port}");
 
@@ -285,9 +285,9 @@ impl NetworkManager {
             }
             ProxyType::Localhost => {
                 let port = Config::verge()
-                    .latest()
+                    .latest_ref()
                     .verge_mixed_port
-                    .unwrap_or(Config::clash().data().get_mixed_port());
+                    .unwrap_or(Config::clash().data_ref().get_mixed_port());
 
                 let proxy_scheme = format!("http://127.0.0.1:{port}");
 
