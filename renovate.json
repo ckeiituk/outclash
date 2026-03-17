@@ -1,7 +1,7 @@
 {
   "extends": ["config:recommended"],
-  "baseBranches": ["dev"],
-  "enabledManagers": ["cargo", "npm"],
+  "baseBranches": ["main"],
+  "enabledManagers": ["npm"],
   "labels": ["dependencies"],
   "ignorePaths": [
     "**/node_modules/**",
@@ -10,9 +10,7 @@
     "**/__tests__/**",
     "**/test/**",
     "**/tests/**",
-    "**/__fixtures__/**",
-    "**/crate/**",
-    "shared/**"
+    "**/__fixtures__/**"
   ],
   "rangeStrategy": "bump",
   "packageRules": [
@@ -27,16 +25,10 @@
       "enabled": false
     },
     {
-      "description": "Group all cargo dependencies into a single PR",
-      "matchManagers": ["cargo"],
-      "groupName": "cargo dependencies"
-    },
-    {
       "description": "Group all npm dependencies into a single PR",
       "matchManagers": ["npm"],
       "groupName": "npm dependencies"
     }
   ],
-  "postUpdateOptions": ["pnpmDedupe"],
-  "ignoreDeps": ["serde_yaml"]
+  "postUpdateOptions": ["pnpmDedupe"]
 }

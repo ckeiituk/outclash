@@ -1,8 +1,6 @@
-# README.md
-# UPDATELOG.md
-# CONTRIBUTING.md
-
+out
+dist
 pnpm-lock.yaml
-
-src-tauri/target/
-src-tauri/gen/
+LICENSE.md
+tsconfig.json
+tsconfig.*.json
