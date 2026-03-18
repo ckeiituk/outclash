@@ -1,114 +1,103 @@
-import React, {
-  useState,
-  useMemo,
-  useRef,
-  useEffect,
-  useCallback,
-} from "react";
-import { useTranslation } from "react-i18next";
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { useAppData } from "@/providers/app-data-provider";
-import { useVisibility } from "@/hooks/use-visibility";
-import { cn } from "@root/lib/utils";
+import BasePage from '@renderer/components/base/base-page'
+import RuleItem from '@renderer/components/rules/rule-item'
+import EditRulesModal from '@renderer/components/profiles/edit-rules-modal'
+import { Virtuoso } from 'react-virtuoso'
+import { useMemo, useState } from 'react'
+import { Separator } from '@renderer/components/ui/separator'
+import { Input } from '@renderer/components/ui/input'
+import { Button } from '@renderer/components/ui/button'
+import { useRules } from '@renderer/hooks/use-rules'
+import { useProfileConfig } from '@renderer/hooks/use-profile-config'
+import { restartCore } from '@renderer/utils/ipc'
+import { includesIgnoreCase } from '@renderer/utils/includes'
+import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
+import { Database, Pencil } from 'lucide-react'
 
-import { BaseEmpty } from "@/components/base";
-import RuleItem from "@/components/rule/rule-item";
-import { ProviderButton } from "@/components/rule/provider-button";
-import { BaseSearchBox } from "@/components/base/base-search-box";
-import { ScrollTopButton } from "@/components/layout/scroll-top-button";
-
-import { SidebarTrigger } from "@/components/ui/sidebar";
-
-const RulesPage = () => {
-  const { t } = useTranslation();
-  const { rules = [], refreshRules, refreshRuleProviders } = useAppData();
-  const [match, setMatch] = useState(() => (_: string) => true);
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
-  const pageVisible = useVisibility();
-
-  useEffect(() => {
-    refreshRules();
-    refreshRuleProviders();
-  }, []);
-
-  useEffect(() => {
-    if (pageVisible) {
-      refreshRules();
-      refreshRuleProviders();
-    }
-  }, [pageVisible]);
+const Rules: React.FC = () => {
+  const { t } = useTranslation()
+  const { rules } = useRules()
+  const { profileConfig } = useProfileConfig()
+  const [filter, setFilter] = useState('')
+  const [showRulesEditor, setShowRulesEditor] = useState(false)
+  const navigate = useNavigate()
 
   const filteredRules = useMemo(() => {
-    return rules.filter((item) => match(item.payload));
-  }, [rules, match]);
-
-  useEffect(() => {
-    const currentScroller = scrollerRef.current;
-    if (!currentScroller) return;
-    const handleScroll = () => {
-      const scrollTop = currentScroller.scrollTop;
-      setIsScrolled(scrollTop > 5);
-      setShowScrollTop(scrollTop > 100);
-    };
-    currentScroller.addEventListener("scroll", handleScroll);
-    return () => currentScroller.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  const scrollToTop = useCallback(() => {
-    virtuosoRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
-  const handleSearch = useCallback((matcher: (content: string) => boolean) => {
-    setMatch(() => matcher);
-  }, []);
+    if (!rules) return []
+    if (filter === '') return rules.rules
+    return rules.rules.filter((rule) => {
+      return (
+        includesIgnoreCase(rule.payload, filter) ||
+        includesIgnoreCase(rule.type, filter) ||
+        includesIgnoreCase(rule.proxy, filter)
+      )
+    })
+  }, [rules, filter])
 
   return (
-    <div className="h-full w-full relative">
-      <div
-        className={cn(
-          "absolute top-0 left-0 right-0 z-10 p-4 transition-all duration-200",
-          { "bg-background/80 backdrop-blur-sm shadow-sm": isScrolled },
-        )}
-      >
-        <div className="flex justify-between items-center">
-          <div className="w-10">
-            <SidebarTrigger />
-          </div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {t("Rules")}
-          </h2>
-          <div className="flex items-center gap-2">
-            <div className="w-70">
-              <BaseSearchBox onSearch={handleSearch} />
-            </div>
-            <ProviderButton />
-          </div>
-        </div>
-      </div>
-
-      <div
-        ref={scrollerRef}
-        className="absolute top-0 left-0 right-0 bottom-0 pt-20 overflow-y-auto"
-      >
-        {filteredRules.length > 0 ? (
-          <Virtuoso
-            ref={virtuosoRef}
-            data={filteredRules}
-            className="h-full w-full"
-            itemContent={(index, item) => (
-              <RuleItem index={index + 1} value={item} />
-            )}
+    <BasePage
+      title={t('pages.rules.title')}
+      header={
+        <>
+          {profileConfig?.current && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="app-nodrag"
+              title={t('profile.editRule')}
+              onClick={() => setShowRulesEditor(true)}
+            >
+              <Pencil className="size-4" />
+            </Button>
+          )}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="app-nodrag"
+            title={t('pages.resources.title')}
+            onClick={() => navigate('/resources')}
+          >
+            <Database className="text-lg" />
+          </Button>
+        </>
+      }
+    >
+      {showRulesEditor && profileConfig?.current && (
+        <EditRulesModal
+          id={profileConfig.current}
+          onClose={async () => {
+            setShowRulesEditor(false)
+            await restartCore()
+          }}
+        />
+      )}
+      <div className="sticky top-0 z-40">
+        <div className="flex px-2 pb-2">
+          <Input
+            className="h-8 text-sm"
+            value={filter}
+            placeholder={t('common.filter')}
+            onChange={(e) => setFilter(e.target.value)}
           />
-        ) : (
-          <BaseEmpty />
-        )}
+        </div>
+        <Separator className="mx-2"/>
       </div>
-      <ScrollTopButton onClick={scrollToTop} show={showScrollTop} />
-    </div>
-  );
-};
+      <div className="h-[calc(100vh-108px)] mt-px">
+        <Virtuoso
+          data={filteredRules}
+          itemContent={(i, rule) => (
+            <RuleItem
+              index={i}
+              type={rule.type}
+              payload={rule.payload}
+              proxy={rule.proxy}
+              size={rule.size}
+            />
+          )}
+        />
+      </div>
+    </BasePage>
+  )
+}
 
-export default RulesPage;
+export default Rules

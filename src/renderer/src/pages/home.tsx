@@ -1,703 +1,429 @@
-import React, {
-  useRef,
-  useMemo,
-  useCallback,
-  useState,
-  useEffect,
-} from "react";
-import { useLockFn } from "ahooks";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { toast } from 'sonner'
+import BasePage from '@renderer/components/base/base-page'
+import { useAppConfig } from '@renderer/hooks/use-app-config'
+import { useControledMihomoConfig } from '@renderer/hooks/use-controled-mihomo-config'
+import { useProfileConfig } from '@renderer/hooks/use-profile-config'
+import { useGroups } from '@renderer/hooks/use-groups'
+import { restartCore, triggerSysProxy, updateTrayIcon } from '@renderer/utils/ipc'
+import NumberFlow from '@number-flow/react'
+import { useTranslation } from 'react-i18next'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import dayjs from 'dayjs'
+import Power from '@renderer/assets/on_icon.svg'
+import Pause from '@renderer/assets/pause_icon.svg'
+import { InfinityIcon, WifiOff, PlusCircle, ChevronRight, Globe, ArrowUp, ArrowDown, RefreshCcw } from 'lucide-react'
+import { SiTelegram } from 'react-icons/si'
+import EditInfoModal from '@renderer/components/profiles/edit-info-modal'
+import { Spinner } from '@renderer/components/ui/spinner'
+import { CharacterMorph } from '@renderer/components/ui/character-morph'
+import { calcTraffic } from '@renderer/utils/calc'
 
-import { useProfiles } from "@/hooks/use-profiles";
-import {
-  ProfileViewer,
-  ProfileViewerRef,
-} from "@/components/profile/profile-viewer";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import {
-  ChevronsUpDown,
-  Check,
-  PlusCircle,
-  Wrench,
-  AlertTriangle,
-  Loader2,
-  Globe,
-  Send,
-  ExternalLink,
-  RefreshCw,
-  ArrowDown,
-  ArrowUp,
-} from "lucide-react";
-import { useVerge } from "@/hooks/use-verge";
-import { useSystemState } from "@/hooks/use-system-state";
-import { useServiceInstaller } from "@/hooks/useServiceInstaller";
-import { Switch } from "@/components/ui/switch";
-import { ProxySelectors } from "@/components/home/proxy-selectors";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { closeAllConnections } from "@/services/api";
-import { patchClashMode } from "@/services/cmds";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { updateProfile } from "@/services/cmds";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import parseTraffic from "@/utils/parse-traffic";
-import { useAppData } from "@/providers/app-data-provider";
-import { PowerButton } from "@/components/home/power-button";
-import { cn } from "@root/lib/utils";
-import map from "../assets/image/map.svg";
-import { AnimatePresence, motion } from "framer-motion";
-
-function useSmoothBoolean(
-  source: boolean,
-  delayOffMs: number = 600,
-  delayOnMs: number = 0,
-): boolean {
-  const [value, setValue] = useState<boolean>(source);
-
-  useEffect(() => {
-    let timer: number | undefined;
-
-    if (source) {
-      if (delayOnMs > 0) {
-        timer = window.setTimeout(() => setValue(true), delayOnMs);
-      } else {
-        setValue(true);
-      }
-    } else {
-      timer = window.setTimeout(() => setValue(false), delayOffMs);
-    }
-
-    return () => {
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [source, delayOffMs, delayOnMs]);
-
-  return value;
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0)} ${units[i]}`
 }
 
-const MinimalHomePage: React.FC = () => {
-  const { t } = useTranslation();
-  const [isToggling, setIsToggling] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
-  const { profiles, patchProfiles, activateSelected, mutateProfiles } =
-    useProfiles();
-  const viewerRef = useRef<ProfileViewerRef>(null);
-  const [uidToActivate, setUidToActivate] = useState<string | null>(null);
-  const { connections, clashConfig, refreshClashConfig } = useAppData();
+// Module-level variable: persists across component mounts/unmounts
+let connectionStartTime: number | null = null
 
-  const profileItems = useMemo(() => {
-    const items =
-      profiles && Array.isArray(profiles.items) ? profiles.items : [];
-    const allowedTypes = ["local", "remote"];
-    return items.filter((i: any) => i && allowedTypes.includes(i.type!));
-  }, [profiles]);
+const Home: React.FC = () => {
+  const { t } = useTranslation()
+  const { appConfig, patchAppConfig } = useAppConfig()
+  const {
+    mainSwitchMode = 'tun',
+    sysProxy,
+    onlyActiveDevice = false,
+  } = appConfig || {}
+  const { enable: sysProxyEnable, mode } = sysProxy || {}
+  const { controledMihomoConfig, patchControledMihomoConfig } = useControledMihomoConfig()
+  const { tun } = controledMihomoConfig || {}
+  const { 'mixed-port': mixedPort } = controledMihomoConfig || {}
+  const sysProxyDisabled = mixedPort == 0
 
-  const currentProfile = useMemo(() => {
-    return profileItems.find((p) => p.uid === profiles?.current);
-  }, [profileItems, profiles?.current]);
-  const currentProfileName = currentProfile?.name || profiles?.current;
+  const { profileConfig, addProfileItem } = useProfileConfig()
+  const { groups } = useGroups()
+  const navigate = useNavigate()
+  const hasProfiles = (profileConfig?.items?.length ?? 0) > 0
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editingItem, setEditingItem] = useState<ProfileItem | null>(null)
+  const [updating, setUpdating] = useState(false)
 
-  const activateProfile = useCallback(
-    async (uid: string, notifySuccess: boolean) => {
-      try {
-        await patchProfiles({ current: uid });
-        await closeAllConnections();
-        await activateSelected();
-        if (notifySuccess) {
-          toast.success(t("Profile Switched"));
-        }
-      } catch (err: any) {
-        toast.error(err.message || err.toString());
-        await mutateProfiles();
-      }
-    },
-    [patchProfiles, activateSelected, mutateProfiles, t],
-  );
+  const handleAddProfile = (): void => {
+    const newProfile: ProfileItem = {
+      id: '',
+      name: '',
+      type: 'remote',
+      url: '',
+      useProxy: false,
+      autoUpdate: true
+    }
+    setEditingItem(newProfile)
+    setShowEditModal(true)
+  }
+
+  const [connectionsInfo, setConnectionsInfo] = useState<ControllerConnections>()
 
   useEffect(() => {
-    const uidToActivate = sessionStorage.getItem("activateProfile");
-    if (uidToActivate && profileItems.some((p) => p.uid === uidToActivate)) {
-      activateProfile(uidToActivate, false);
-      sessionStorage.removeItem("activateProfile");
+    const handleConnections = (_e: unknown, info: ControllerConnections): void => {
+      setConnectionsInfo(info)
     }
-  }, [profileItems, activateProfile]);
-
-  const handleProfileChange = useLockFn(async (uid: string) => {
-    if (profiles?.current === uid) return;
-    await activateProfile(uid, true);
-  });
-
-  const { verge, patchVerge, mutateVerge } = useVerge();
-  const { isAdminMode, isServiceMode } = useSystemState();
-  const { installServiceAndRestartCore } = useServiceInstaller();
-  const isTunAvailable = isServiceMode || isAdminMode;
-  const isProxyEnabled =
-    !!verge?.enable_system_proxy || !!verge?.enable_tun_mode;
-  const primaryAction: "tun-mode" | "system-proxy" =
-    verge?.primary_action ?? "tun-mode";
-
-  const uiProxyEnabled = useSmoothBoolean(isProxyEnabled, 600, 0);
-
-  const showTunAlert = primaryAction === "tun-mode" && !isTunAvailable;
-
-  // Mode toggle (rule/global)
-  const modeList = ["rule", "global"] as const;
-  const curMode = (clashConfig?.mode || "rule").toLowerCase();
-  const isGlobalMode = curMode === "global";
-
-  const onChangeMode = useLockFn(async (mode: string) => {
-    if (!modeList.includes(mode as (typeof modeList)[number])) return;
-    const isTauriEnv =
-      typeof window !== "undefined" &&
-      ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
-    if (!isTauriEnv) {
-      toast.error(t("This action is only available in the desktop app"));
-      return;
+    window.electron.ipcRenderer.on('mihomoConnections', handleConnections)
+    return (): void => {
+      window.electron.ipcRenderer.removeListener('mihomoConnections', handleConnections)
     }
-    if (mode !== curMode && verge?.auto_close_connection) {
-      closeAllConnections();
+  }, [])
+
+  const [loading, setLoading] = useState(false)
+  const [loadingDirection, setLoadingDirection] = useState<'connecting' | 'disconnecting'>(
+    'connecting'
+  )
+
+  const [elapsed, setElapsed] = useState(() => {
+    if (connectionStartTime !== null) {
+      return Math.floor((Date.now() - connectionStartTime) / 1000)
     }
-    await patchClashMode(mode);
-    await refreshClashConfig();
-  });
+    return 0
+  })
 
-  const handleToggleProxy = useLockFn(async () => {
-    const turningOn = !isProxyEnabled;
-    setIsToggling(true);
+  const isSelected = (tun?.enable ?? false) || (sysProxyEnable ?? false)
 
+  useEffect(() => {
+    if (isSelected) {
+      if (connectionStartTime === null) {
+        connectionStartTime = Date.now()
+      }
+      setElapsed(Math.floor((Date.now() - connectionStartTime) / 1000))
+      const interval = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - connectionStartTime!) / 1000))
+      }, 1000)
+      return () => clearInterval(interval)
+    } else {
+      connectionStartTime = null
+      setElapsed(0)
+      return undefined
+    }
+  }, [isSelected])
+
+  const isDisabled =
+    loading || (mainSwitchMode === 'sysproxy' && mode == 'manual' && sysProxyDisabled)
+
+  const status = loading
+    ? loadingDirection === 'connecting'
+      ? t('pages.home.connecting')
+      : t('pages.home.disconnecting')
+    : isSelected
+      ? t('pages.home.connected')
+      : t('pages.home.disconnected')
+  const statusWidthTexts = [
+    t('pages.home.connecting'),
+    t('pages.home.disconnecting'),
+    t('pages.home.connected'),
+    t('pages.home.disconnected')
+  ]
+  const showConnectedTimer = !loading && isSelected
+  const elapsedHours = Math.floor(elapsed / 3600)
+  const elapsedMinutes = Math.floor((elapsed % 3600) / 60)
+  const elapsedSeconds = elapsed % 60
+
+  // Current profile & subscription
+  const currentProfile = useMemo(() => {
+    if (!profileConfig?.current || !profileConfig?.items) return null
+    return profileConfig.items.find((item) => item.id === profileConfig.current) ?? null
+  }, [profileConfig])
+
+  const handleUpdateProfile = async (): Promise<void> => {
+    if (!currentProfile || updating) return
+    setUpdating(true)
     try {
-      if (turningOn) {
-        if (primaryAction === "tun-mode") {
-          if (!isTunAvailable) {
-            toast.error(t("TUN requires Service Mode or Admin Mode"));
-            setIsToggling(false);
-            return;
-          }
-          await patchVerge({
-            enable_tun_mode: true,
-            enable_system_proxy: false,
-          });
+      await addProfileItem(currentProfile)
+    } catch (e) {
+      toast.error(`${e}`)
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const subscription = currentProfile?.extra
+  const trafficUsed = (subscription?.upload ?? 0) + (subscription?.download ?? 0)
+  const trafficTotal = subscription?.total ?? 0
+  const trafficRemaining = trafficTotal > 0 ? trafficTotal - trafficUsed : 0
+  const expireTimestamp = subscription?.expire ?? 0
+  const expireDate = expireTimestamp > 0 ? dayjs.unix(expireTimestamp).format('L') : t('pages.home.never')
+  const daysRemaining =
+    expireTimestamp > 0 ? Math.max(0, dayjs.unix(expireTimestamp).diff(dayjs(), 'day')) : 0
+
+  const firstGroup = groups?.[0]
+  const supportUrl = currentProfile?.supportUrl
+  const supportLinkInfo = useMemo(() => {
+    if (!supportUrl) return null
+    try {
+      const parsed = new URL(supportUrl)
+      const normalized = `${parsed.hostname}${parsed.pathname}`.toLowerCase()
+      return {
+        href: parsed.toString(),
+        isTelegram:
+          parsed.protocol === 'tg:' || normalized.includes('t.me') || normalized.includes('telegram')
+      }
+    } catch {
+      return null
+    }
+  }, [supportUrl])
+
+  const onValueChange = async (enable: boolean): Promise<void> => {
+    setLoading(true)
+    setLoadingDirection(enable ? 'connecting' : 'disconnecting')
+    try {
+      if (mainSwitchMode === 'tun') {
+        if (enable) {
+          await patchControledMihomoConfig({ tun: { enable }, dns: { enable: true } })
         } else {
-          await patchVerge({
-            enable_system_proxy: true,
-            enable_tun_mode: false,
-          });
+          await patchControledMihomoConfig({ tun: { enable } })
         }
-        toast.success(t("Proxy enabled"));
+        await restartCore()
+        window.electron.ipcRenderer.send('updateFloatingWindow')
+        window.electron.ipcRenderer.send('updateTrayMenu')
       } else {
-        await patchVerge({
-          enable_tun_mode: false,
-          enable_system_proxy: false,
-        });
-        toast.success(t("Proxy disabled"));
+        if (mode == 'manual' && sysProxyDisabled) return
+        await triggerSysProxy(enable, onlyActiveDevice)
+        await patchAppConfig({ sysProxy: { enable } })
+        window.electron.ipcRenderer.send('updateFloatingWindow')
+        window.electron.ipcRenderer.send('updateTrayMenu')
       }
-      mutateVerge();
-    } catch (error: any) {
-      toast.error(t("Failed to toggle proxy"), { description: error.message });
+      await updateTrayIcon()
+    } catch (e) {
+      toast.error(`${e}`)
     } finally {
-      setIsToggling(false);
+      setLoading(false)
     }
-  });
-
-  // Opposite action toggle: enable the other mode than primary_action
-  const handleOppositeAction = useLockFn(async () => {
-    const isDesktop =
-      typeof window !== "undefined" &&
-      ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
-    if (!isDesktop) {
-      toast.error(t("This action is only available in the desktop app"));
-      return;
-    }
-
-    const oppositeAction: "tun-mode" | "system-proxy" =
-      primaryAction === "tun-mode" ? "system-proxy" : "tun-mode";
-    setIsToggling(true);
-    try {
-      if (oppositeAction === "tun-mode") {
-        if (!isTunAvailable) {
-          toast.error(t("TUN requires Service Mode or Admin Mode"));
-          setIsToggling(false);
-          return;
-        }
-        await patchVerge({
-          enable_tun_mode: true,
-          enable_system_proxy: false,
-          primary_action: oppositeAction,
-        });
-        toast.success(t("Tun Mode"));
-      } else {
-        await patchVerge({
-          enable_system_proxy: true,
-          enable_tun_mode: false,
-          primary_action: oppositeAction,
-        });
-        toast.success(t("Use System Proxy"));
-      }
-      mutateVerge();
-    } catch (error: any) {
-      toast.error(t("Failed to toggle proxy"), { description: error.message });
-    } finally {
-      setIsToggling(false);
-    }
-  });
-
-  const handleUpdateProfile = useLockFn(async () => {
-    if (!currentProfile?.uid || currentProfile.type !== "remote") return;
-    setIsUpdating(true);
-    try {
-      await updateProfile(currentProfile.uid);
-      toast.success(t("Profile Updated Successfully"));
-      mutateProfiles();
-    } catch (err: any) {
-      toast.error(t("Failed to update profile"), { description: err.message });
-    } finally {
-      setIsUpdating(false);
-    }
-  });
-
-  const statusInfo = useMemo(() => {
-    if (isToggling) {
-      return {
-        text: isProxyEnabled ? t("Disconnecting...") : t("Connecting..."),
-        color: isProxyEnabled ? "#f59e0b" : "#84cc16",
-        isAnimating: true,
-      };
-    }
-    if (isProxyEnabled) {
-      return {
-        text: t("Connected"),
-        color: "#22c55e",
-        isAnimating: false,
-      };
-    }
-    return {
-      text: t("Disconnected"),
-      color: "#ef4444",
-      isAnimating: false,
-    };
-  }, [isToggling, isProxyEnabled, t]);
-
-  const statsContainerVariants = {
-    initial: { opacity: 0, y: 25, filter: "blur(8px)", scale: 0.98 },
-    animate: {
-      opacity: 1,
-      y: 0,
-      filter: "blur(0px)",
-      scale: 1,
-      transition: {
-        duration: 0.5,
-        ease: [0.25, 0.1, 0.25, 1],
-        when: "beforeChildren",
-        staggerChildren: 0.08,
-      },
-    },
-    exit: {
-      opacity: 0,
-      y: 10,
-      filter: "blur(10px)",
-      scale: 0.98,
-      transition: {
-        duration: 0.45,
-        ease: [0.22, 0.08, 0.05, 1],
-        when: "afterChildren",
-        staggerChildren: 0.06,
-        staggerDirection: -1,
-      },
-    },
-  } as const;
-
-  const statItemVariants = {
-    initial: { opacity: 0, y: 10, filter: "blur(6px)" },
-    animate: {
-      opacity: 1,
-      y: 0,
-      filter: "blur(0px)",
-      transition: { duration: 0.35, ease: "easeOut" },
-    },
-    exit: {
-      opacity: 0,
-      y: -8,
-      filter: "blur(6px)",
-      transition: { duration: 0.3, ease: "easeIn" },
-    },
-  } as const;
+  }
 
   return (
-    <div className="h-full w-full flex flex-col">
-      <div className="absolute inset-0 opacity-20 pointer-events-none z-0 [transform:translateZ(0)]">
-        <img src={map} alt="World map" className="w-full h-full object-cover" />
-      </div>
-
-      <motion.div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full pointer-events-none z-0"
-        style={{
-          background:
-            "radial-gradient(circle, rgba(34,197,94,0.3) 0%, transparent 70%)",
-          filter: "blur(100px)",
-        }}
-        animate={{
-          opacity: uiProxyEnabled ? 1 : 0,
-          scale: uiProxyEnabled ? 1 : 0.92,
-        }}
-        transition={{
-          type: "spring",
-          stiffness: 120,
-          damping: 25,
-          mass: 1,
-        }}
-      />
-
-      <header className="flex-shrink-0 p-5 grid grid-cols-3 items-center z-10">
-        <div className="flex justify-start">
-          <SidebarTrigger />
-        </div>
-        <div className="justify-self-center flex flex-col items-center gap-2">
-          <div className="relative flex items-center justify-center">
-            {profileItems.length > 0 ? (
-              <>
-                <div className="absolute right-full mr-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => viewerRef.current?.create()}
-                          className={cn(
-                            "backdrop-blur-sm bg-white/80 border-gray-300/60",
-                            "dark:bg-white/5 dark:border-white/15",
-                            "hover:bg-white/90 hover:border-gray-400/70",
-                            "dark:hover:bg-white/10 dark:hover:border-white/20",
-                            "transition-all duration-200",
-                          )}
-                        >
-                          <PlusCircle className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{t("Add Profile")}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full max-w-[250px] sm:max-w-xs",
-                        "backdrop-blur-sm bg-white/80 border-gray-300/60",
-                        "dark:bg-white/5 dark:border-white/15",
-                        "hover:bg-white/90 hover:border-gray-400/70",
-                        "dark:hover:bg-white/10 dark:hover:border-white/20",
-                        "transition-all duration-200",
-                      )}
-                    >
-                      <span className="truncate">{currentProfileName}</span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width]">
-                    <DropdownMenuLabel>{t("Profiles")}</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {profileItems.map((p) => (
-                      <DropdownMenuItem
-                        key={p.uid}
-                        onSelect={() => handleProfileChange(p.uid)}
-                      >
-                        <span className="flex-1 truncate">{p.name}</span>
-                        {profiles?.current === p.uid && (
-                          <Check className="ml-4 h-4 w-4" />
-                        )}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                {currentProfile?.type === "remote" && (
-                  <div className="absolute left-full ml-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleUpdateProfile}
-                            disabled={isUpdating}
-                            className={cn(
-                              "flex-shrink-0",
-                              "backdrop-blur-sm bg-white/70 border border-gray-300/50",
-                              "dark:bg-white/5 dark:border-white/10",
-                              "hover:bg-white/85 hover:border-gray-400/60",
-                              "dark:hover:bg-white/10 dark:hover:border-white/15",
-                              "transition-all duration-200",
-                            )}
-                          >
-                            {isUpdating ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-5 w-5" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{t("Update Profile")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="absolute right-full mr-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => viewerRef.current?.create()}
-                          className={cn(
-                            "backdrop-blur-sm bg-white/80 border-gray-300/60",
-                            "dark:bg-white/5 dark:border-white/15",
-                            "hover:bg-white/90 hover:border-gray-400/70",
-                            "dark:hover:bg-white/10 dark:hover:border-white/20",
-                            "transition-all duration-200",
-                          )}
-                        >
-                          <PlusCircle className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{t("Add Profile")}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Button
-                  variant="outline"
-                  disabled
-                  className={cn(
-                    "max-w-[250px] sm:max-w-xs opacity-50 cursor-not-allowed",
-                    "backdrop-blur-sm bg-white/50 border-gray-300/40",
-                    "dark:bg-white/3 dark:border-white/10",
-                  )}
-                >
-                  <span className="truncate">{t("No profiles available")}</span>
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-30" />
-                </Button>
-              </>
-            )}
+    <BasePage>
+      {!hasProfiles ? (
+        <div className="h-full w-full flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 max-w-75 rounded-2xl border border-stroke bg-card/50 backdrop-blur-xl p-8">
+            <WifiOff className="size-16 text-muted-foreground" />
+            <h2 className="text-xl font-bold text-foreground">{t('pages.profiles.emptyTitle')}</h2>
+            <p className="text-sm font-medium text-muted-foreground text-center">
+              {t('pages.profiles.emptyDescription')}
+            </p>
+            <button
+              onClick={handleAddProfile}
+              data-guide="home-add-profile-btn"
+              className="flex items-center gap-2 rounded-xl border border-stroke bg-gradient-start-power-on/50 backdrop-blur-xl px-6 py-3 text-foreground hover:bg-gradient-start-power-on/40 transition-colors"
+            >
+              <PlusCircle className="size-5" />
+              <span className="text-sm font-medium">{t('pages.profiles.addProfile')}</span>
+            </button>
           </div>
-        </div>
-        <div className="flex justify-end"></div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto flex items-center justify-center">
-        <div className="relative flex flex-col items-center gap-8 py-10 w-full max-w-4xl px-4">
-          {currentProfile?.announce && (
-            <div className="absolute -top-15 w-full flex justify-center text-center max-w-lg">
-              {currentProfile.announce_url ? (
-                <a
-                  href={currentProfile.announce_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-base font-semibold text-foreground hover:underline hover:opacity-80 transition-all whitespace-pre-wrap"
-                  title={currentProfile.announce_url.replace(/\\n/g, "\n")}
-                >
-                  <span>{currentProfile.announce.replace(/\\n/g, "\n")}</span>
-                  <ExternalLink className="h-4 w-4 flex-shrink-0" />
-                </a>
-              ) : (
-                <p className="text-base font-semibold text-foreground whitespace-pre-wrap">
-                  {currentProfile.announce}
-                </p>
-              )}
-            </div>
+          {showEditModal && editingItem && (
+            <EditInfoModal
+              item={editingItem}
+              isCurrent={false}
+              updateProfileItem={async (item: ProfileItem) => {
+                await addProfileItem(item)
+                setShowEditModal(false)
+                setEditingItem(null)
+              }}
+              onClose={() => {
+                setShowEditModal(false)
+                setEditingItem(null)
+              }}
+            />
           )}
-
-          <div className="relative text-center">
-            <motion.h1
-              className={cn(
-                "text-4xl mb-2 font-semibold",
-                statusInfo.isAnimating && "animate-pulse",
-              )}
-              animate={{ color: statusInfo.color }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-            >
-              {statusInfo.text}
-            </motion.h1>
-
-            <AnimatePresence mode="wait">
-              {uiProxyEnabled && (
-                <motion.div
-                  key="traffic-stats"
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-52 flex justify-center items-center text-sm text-muted-foreground gap-6"
-                  variants={statsContainerVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                  style={{ willChange: "opacity, transform, filter" }}
-                >
-                  <motion.div
-                    className="flex items-center gap-1"
-                    variants={statItemVariants}
-                    style={{ willChange: "opacity, transform, filter" }}
-                  >
-                    <ArrowDown className="h-4 w-4 text-green-500" />
-                    <motion.span layout>
-                      {parseTraffic(connections.downloadTotal)}
-                    </motion.span>
-                  </motion.div>
-
-                  <motion.div
-                    className="flex items-center gap-1"
-                    variants={statItemVariants}
-                    style={{ willChange: "opacity, transform, filter" }}
-                  >
-                    <ArrowUp className="h-4 w-4 text-sky-500" />
-                    <motion.span layout>
-                      {parseTraffic(connections.uploadTotal)}
-                    </motion.span>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="relative -translate-y-6">
-            <PowerButton
-              loading={isToggling}
-              checked={uiProxyEnabled}
-              onClick={handleToggleProxy}
-              disabled={showTunAlert || isToggling || profileItems.length === 0}
-              aria-label={t("Toggle Proxy")}
-            />
-          </div>
-
-          {/* Opposite action button: enables the other primary mode */}
-          <div className="mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleOppositeAction}
-              disabled={isToggling || profileItems.length === 0}
-            >
-              {verge?.primary_action === "tun-mode"
-                ? t("switch_to_system_proxy")
-                : t("switch_to_tun_mode")}
-            </Button>
-          </div>
-
-          {/* Mode switch: rule <-> global */}
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{t("clash_mode_rule")}</span>
-            <Switch
-              checked={isGlobalMode}
-              onCheckedChange={(checked) =>
-                onChangeMode(checked ? "global" : "rule")
-              }
-              aria-label={t("clash_mode_global")}
-            />
-            <span>{t("clash_mode_global")}</span>
-          </div>
-
-          {showTunAlert && (
-            <div className="w-full max-w-sm">
-              <Alert
-                className="flex flex-col items-center gap-2 text-center"
-                variant="destructive"
+        </div>
+      ) : (
+        <div className="flex flex-col h-full px-2 pb-2 gap-3">
+          {/* Profile card */}
+          {currentProfile && (
+            <div className="rounded-2xl border border-stroke bg-card/50 backdrop-blur-xl p-4">
+              <div
+                data-guide="home-profile-header"
+                className="flex items-center justify-center gap-3"
               >
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>{t("Attention Required")}</AlertTitle>
-                <AlertDescription className="text-xs">
-                  {t("TUN requires Service Mode or Admin Mode")}
-                </AlertDescription>
-                {!isServiceMode && !isAdminMode && (
-                  <Button
-                    size="sm"
-                    className="mt-2"
-                    onClick={installServiceAndRestartCore}
-                  >
-                    <Wrench className="mr-2 h-4 w-4" />
-                    {t("Install Service")}
-                  </Button>
+                {currentProfile.logo && (
+                  <img
+                    src={currentProfile.logo}
+                    alt=""
+                    className="w-10 h-10 rounded-full"
+                    onError={(e) => {
+                      ;(e.target as HTMLImageElement).style.display = 'none'
+                    }}
+                  />
                 )}
-              </Alert>
+                <span className="font-medium text-base">{currentProfile.name}</span>
+                {currentProfile.type === 'remote' && (
+                  <button
+                    onClick={handleUpdateProfile}
+                    disabled={updating}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCcw className={`size-4 ${updating ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
+              </div>
+              {currentProfile.announce && (
+                <div
+                  data-guide="home-profile-announce"
+                  className="text-sm font-medium text-center mt-2"
+                >
+                  {currentProfile.announce}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Subscription info */}
+          {subscription && (
+            <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center rounded-2xl border border-stroke bg-card/50 backdrop-blur-xl p-1">
+              <div className="flex flex-col items-center py-2 px-1">
+                <span className="text-sm text-foreground">{t('pages.home.trafficRemaining')}</span>
+                <span className="font-bold text-base mt-0.5">
+                  {trafficTotal > 0 ? formatBytes(trafficRemaining) : <InfinityIcon />}
+                </span>
+              </div>
+              <div className="h-8 w-px bg-stroke" />
+              <div className="flex flex-col items-center py-2 px-1">
+                <span className="text-sm text-foreground">{t('pages.home.daysRemaining')}</span>
+                <span className="text-base font-bold mt-0.5">
+                  {expireTimestamp > 0 ? daysRemaining : <InfinityIcon />}
+                </span>
+              </div>
+              <div className="h-8 w-px bg-stroke" />
+              <div className="flex flex-col items-center py-2 px-1">
+                <span className="text-sm text-foreground">{t('pages.home.expires')}</span>
+                <span className="text-base font-bold mt-0.5">{expireDate}</span>
+              </div>
             </div>
           )}
 
-          <div className="w-full max-w-sm mt-4 flex justify-center">
-            {profileItems.length > 0 ? (
-              <ProxySelectors />
-            ) : (
-              <Alert className="flex flex-col items-center gap-2 text-center">
-                <PlusCircle className="h-4 w-4" />
-                <AlertTitle>{t("Get Started")}</AlertTitle>
-                <AlertDescription className="whitespace-pre-wrap">
-                  {t(
-                    "You don't have any profiles yet. Add your first one to begin.",
-                  )}
-                </AlertDescription>
-                <Button
-                  className="mt-2"
-                  onClick={() => viewerRef.current?.create()}
-                >
-                  {t("Add Profile")}
-                </Button>
-              </Alert>
-            )}
+          {/* Connection button */}
+          <div className="flex flex-col grow-3 items-center justify-center min-h-0">
+            <div className="mb-3 flex h-6 items-center justify-center">
+              <CharacterMorph
+                texts={[status]}
+                reserveTexts={statusWidthTexts}
+                interval={3000}
+                className="h-6 leading-none text-foreground font-semibold uppercase"
+              />
+            </div>
+            <button
+              disabled={isDisabled}
+              onClick={() => onValueChange(!isSelected)}
+              data-guide="home-power-toggle"
+              className="relative group transition-transform active:scale-95"
+            >
+              <div
+                className={`w-32 h-32 rounded-full flex items-center justify-center transition-all duration-300 bg-radial-[at_30%_45%] backdrop-blur-xl border-2 ${
+                  isSelected
+                    ? 'from-gradient-start-power-on/60 to-gradient-end-power-on/60 border-stroke-power-on'
+                    : 'from-gradient-start-power-off/50 to-gradient-end-power-off/50 border-stroke-power-off'
+                } ${loading ? 'animate-none' : ''}`}
+              >
+                <div className="relative size-16">
+                  <Spinner
+                    className={`absolute inset-0 m-auto size-16 text-[#FAFAFA] transition-all duration-300 ease-out ${
+                      loading ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+                    }`}
+                  />
+                  <img
+                    src={Pause}
+                    alt=""
+                    className={`absolute inset-0 size-16 fill-foreground transition-all duration-300 ease-out ${
+                      !loading && isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+                    }`}
+                  />
+                  <img
+                    src={Power}
+                    alt=""
+                    className={`absolute inset-0 size-16 fill-foreground transition-all duration-300 ease-out ${
+                      !loading && !isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+                    }`}
+                  />
+                </div>
+              </div>
+            </button>
+            <div className="mt-3 h-8 flex items-center justify-center">
+              <div
+                aria-hidden={!showConnectedTimer}
+                className={`inline-flex items-center gap-0.5 text-base font-bold text-foreground tabular-nums transition-all duration-300 ease-out ${
+                  showConnectedTimer ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
+                }`}
+              >
+                <NumberFlow
+                  value={elapsedHours}
+                  format={{ minimumIntegerDigits: 2, useGrouping: false }}
+                />
+                <span>:</span>
+                <NumberFlow
+                  value={elapsedMinutes}
+                  format={{ minimumIntegerDigits: 2, useGrouping: false }}
+                />
+                <span>:</span>
+                <NumberFlow
+                  value={elapsedSeconds}
+                  format={{ minimumIntegerDigits: 2, useGrouping: false }}
+                />
+              </div>
+            </div>
+            <div
+              aria-hidden={!showConnectedTimer}
+              className={`mt-2 flex items-center gap-4 tabular-nums transition-all duration-300 ease-out ${
+                showConnectedTimer ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <ArrowUp className="size-3.5 text-stroke-power-on" />
+                <span>{calcTraffic(connectionsInfo?.uploadTotal ?? 0)}</span>
+              </div>
+              <div className="h-3 w-px bg-stroke" />
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <ArrowDown className="size-3.5 text-stroke-power-on" />
+                <span>{calcTraffic(connectionsInfo?.downloadTotal ?? 0)}</span>
+              </div>
+            </div>
           </div>
+
+          {/* Group & Proxy selectors */}
+          {firstGroup && (
+            <div className="flag-emoji flex flex-col items-center mx-auto w-full max-w-3xs max-h-16">
+              <div
+                data-guide="home-group-selector"
+                className="w-full cursor-pointer"
+                onClick={() => navigate('/proxies', { state: { fromHome: true } })}
+              >
+                <div className="flex items-center justify-between h-9 rounded-2xl border border-stroke pl-3 pr-1 py-3 backdrop-blur-xl bg-card/50">
+                  <div className="flag-emoji text-sm truncate max-w-52">
+                    {firstGroup.now || firstGroup.name}
+                  </div>
+                  <ChevronRight />
+                </div>
+              </div>
+            </div>
+          )}
+          {supportLinkInfo && (
+            <div className="flex justify-center text-sm text-muted-foreground">
+              <button
+                data-guide="home-support-link"
+                type="button"
+                onClick={() => open(supportLinkInfo.href)}
+                className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+              >
+                {supportLinkInfo.isTelegram ? (
+                  <SiTelegram className="size-4" />
+                ) : (
+                  <Globe className="size-4" />
+                )}
+                <span>{t('pages.profiles.support')}</span>
+              </button>
+            </div>
+          )}
         </div>
-      </main>
+      )}
+    </BasePage>
+  )
+}
 
-      <footer className="flex justify-center p-4 flex-shrink-0">
-        {currentProfile?.support_url && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{t("Support")}:</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <a
-                    href={currentProfile.support_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="transition-colors hover:text-primary"
-                  >
-                    {currentProfile.support_url.includes("t.me") ||
-                    currentProfile.support_url.includes("telegram") ||
-                    currentProfile.support_url.startsWith("tg://") ? (
-                      <Send className="h-5 w-5" />
-                    ) : (
-                      <Globe className="h-5 w-5" />
-                    )}
-                  </a>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{currentProfile.support_url}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )}
-      </footer>
-
-      <ProfileViewer ref={viewerRef} onChange={() => mutateProfiles()} />
-    </div>
-  );
-};
-
-export default MinimalHomePage;
+export default Home

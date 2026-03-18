@@ -150,9 +150,10 @@ jobs:
         env:
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
+          SKIP_PREPARE: "1"
         shell: bash
         run: |
-          SKIP_PREPARE=1 pnpm install
+          pnpm install
           pnpm prepare --${{ matrix.arch }}
 
       - name: Install Build Tools (Linux pacman)
@@ -249,7 +250,9 @@ jobs:
           run_install: false
 
       - name: Install dependencies
-        run: SKIP_PREPARE=1 pnpm install
+        env:
+          SKIP_PREPARE: "1"
+        run: pnpm install
 
       - name: Release updater file
         run: pnpm updater

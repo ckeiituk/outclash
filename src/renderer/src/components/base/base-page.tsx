@@ -1,37 +1,72 @@
-import React, { ReactNode } from "react";
-import { BaseErrorBoundary } from "./base-error-boundary";
-import { cn } from "@root/lib/utils";
+import { Button } from '@renderer/components/ui/button'
+import { useAppConfig } from '@renderer/hooks/use-app-config'
+import { platform } from '@renderer/utils/init'
+import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ChevronLeft } from 'lucide-react'
 
+const sidebarPaths = new Set(['/home', '/profiles', '/proxies', '/connections', '/rules', '/logs', '/settings'])
 interface Props {
-  title?: ReactNode; // Заголовок страницы
-  header?: ReactNode; // Элементы в правой части шапки (кнопки и т.д.)
-  children?: ReactNode; // Основное содержимое страницы
-  className?: string; // Дополнительные классы для основной области контента
+  title?: React.ReactNode
+  header?: React.ReactNode
+  children?: React.ReactNode
+  contentClassName?: string
+  showBackButton?: boolean
 }
 
-export const BasePage: React.FC<Props> = (props) => {
-  const { title, header, children, className } = props;
+const BasePage = forwardRef<HTMLDivElement, Props>((props, ref) => {
+  const { appConfig } = useAppConfig()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const isSubPage = !sidebarPaths.has(location.pathname)
+  const { useWindowFrame = false } = appConfig || {}
+  const [overlayWidth, setOverlayWidth] = React.useState(0)
+
+  useEffect(() => {
+    if (platform !== 'darwin' && !useWindowFrame) {
+      try {
+        // @ts-ignore windowControlsOverlay
+        const windowControlsOverlay = window.navigator.windowControlsOverlay
+        setOverlayWidth(window.innerWidth - windowControlsOverlay.getTitlebarAreaRect().width)
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [])
+
+  const contentRef = useRef<HTMLDivElement>(null)
+  useImperativeHandle(ref, () => {
+    return contentRef.current as HTMLDivElement
+  })
 
   return (
-    <BaseErrorBoundary>
-      {/* 1. Корневой контейнер: flex-колонка на всю высоту */}
-      <div className="h-full flex flex-col bg-background text-foreground">
-        {/* 2. Шапка: не растягивается, имеет фиксированную высоту и нижнюю границу */}
-        <header
-          data-tauri-drag-region="true"
-          className="flex-shrink-0 flex items-center justify-between h-16 px-4 border-b border-border"
-        >
-          <h2 className="text-xl font-bold" data-tauri-drag-region="true">
-            {title}
-          </h2>
-          <div data-tauri-drag-region="true">{header}</div>
-        </header>
-
-        {/* 3. Основная область: занимает все оставшееся место и прокручивается */}
-        <main className={cn("flex-1 overflow-y-auto min-h-0", className)}>
-          {children}
-        </main>
+    <div ref={contentRef} className="w-full h-full">
+      <div className="sticky top-0 z-40 h-[57px] w-full">
+        <div className="app-drag px-2 pt-3 pb-2 flex justify-between h-[57px]">
+          <div className="title h-full text-lg leading-8 flex items-center gap-1">
+            {(isSubPage || props.showBackButton) && (
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="app-nodrag"
+                onClick={() => navigate(-1)}
+              >
+                <ChevronLeft className="size-5" />
+              </Button>
+            )}
+            {props.title}
+          </div>
+          <div style={{ marginRight: overlayWidth }} className="header flex gap-1 h-full">
+            {props.header}
+          </div>
+        </div>
       </div>
-    </BaseErrorBoundary>
-  );
-};
+      <div className="content h-[calc(100vh-57px)] overflow-y-auto custom-scrollbar">
+        {props.children}
+      </div>
+    </div>
+  )
+})
+
+BasePage.displayName = 'BasePage'
+export default BasePage

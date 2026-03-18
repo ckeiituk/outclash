@@ -1,105 +1,51 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useLockFn } from "ahooks";
-import { useTranslation } from "react-i18next";
-import { openWebUrl } from "@/services/cmds";
-import SettingVergeBasic from "@/components/setting/setting-verge-basic";
-import SettingVergeAdvanced from "@/components/setting/setting-verge-advanced";
-import SettingClash from "@/components/setting/setting-clash";
-import SettingSystem from "@/components/setting/setting-system";
-import { showNotice } from "@/services/noticeService";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Menu, Github, HelpCircle, Send } from "lucide-react";
-import { cn } from "@root/lib/utils";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Button } from '@renderer/components/ui/button'
+import BasePage from '@renderer/components/base/base-page'
+import GeneralConfig from '@renderer/components/settings/general-config'
+import AdvancedSettings from '@renderer/components/settings/advanced-settings'
+import Actions from '@renderer/components/settings/actions'
+import ShortcutConfig from '@renderer/components/settings/shortcut-config'
+import AppearanceConfig from '@renderer/components/settings/appearance-confis'
+import LanguageConfig from '@renderer/components/settings/language-config'
+import ProxySwitches from '@renderer/components/settings/proxy-switches'
+import { useTranslation } from 'react-i18next'
+import { Github } from 'lucide-react'
+import { useState } from 'react'
 
-const SettingPage = () => {
-  const { t } = useTranslation();
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [isScrolled, setIsScrolled] = useState(false);
-
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    const handleScroll = () => {
-      if (scrollContainer) {
-        setIsScrolled(scrollContainer.scrollTop > 10);
-      }
-    };
-    scrollContainer?.addEventListener("scroll", handleScroll);
-    return () => {
-      scrollContainer?.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
-
-  const onError = (err: any) =>
-    showNotice("error", err?.message || err.toString());
-  const toGithubRepo = useLockFn(() =>
-    openWebUrl("https://github.com/ckeiituk/clash-verge-rev-lite"),
-  );
+const Settings: React.FC = () => {
+  const { t } = useTranslation()
+  const [showHiddenSettings, setShowHiddenSettings] = useState(false)
 
   return (
-    <div className="h-full w-full relative">
-      <div
-        className={cn(
-          "absolute top-0 left-0 right-0 z-10 p-4 flex justify-between items-center transition-colors duration-200",
-          { "bg-background/80 backdrop-blur-sm": isScrolled },
-        )}
-      >
-        <div className="w-10">
-          <SidebarTrigger />
-        </div>
-        <h2 className="text-2xl font-semibold tracking-tight">
-          {t("Settings")}
-        </h2>
-
-        <div className="flex items-center gap-2">
+    <BasePage
+      title={t('pages.settings.title')}
+      header={
+        <>
           <Button
+            size="icon-sm"
             variant="ghost"
-            size="icon"
-            title={t("Github Repo")}
-            onClick={toGithubRepo}
+            className="app-nodrag"
+            title={t('pages.settings.githubRepo')}
+            onClick={() => {
+              window.open('https://github.com/ckeiituk/outclash')
+            }}
           >
-            <Github className="h-5 w-5" />
+            <Github className="text-lg" />
           </Button>
-        </div>
-      </div>
+        </>
+      }
+    >
+      <ProxySwitches />
+      <GeneralConfig showHiddenSettings={showHiddenSettings} />
+      <LanguageConfig />
+      <AppearanceConfig showHiddenSettings={showHiddenSettings} />
+      <AdvancedSettings showHiddenSettings={showHiddenSettings} />
+      <ShortcutConfig />
+      <Actions
+        showHiddenSettings={showHiddenSettings}
+        onUnlockHiddenSettings={() => setShowHiddenSettings(true)}
+      />
+    </BasePage>
+  )
+}
 
-      <div
-        ref={scrollContainerRef}
-        className="absolute top-0 left-0 right-0 bottom-0 pt-20 overflow-y-auto"
-      >
-        <div className="p-4 pt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <Card>
-                <CardContent>
-                  <SettingSystem onError={onError} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <SettingClash onError={onError} />
-                </CardContent>
-              </Card>
-            </div>
-            <div className="space-y-4">
-              <Card>
-                <CardContent>
-                  <SettingVergeBasic onError={onError} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <SettingVergeAdvanced onError={onError} />
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default SettingPage;
+export default Settings

@@ -41,10 +41,11 @@ jobs:
 
       - name: Install dependencies
         env:
+          SKIP_PREPARE: "1"
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
         run: |
-          SKIP_PREPARE=1 pnpm install
+          pnpm install
           pnpm prepare --${{ matrix.arch }}
 
       - name: Skip macOS build (signing secrets missing)

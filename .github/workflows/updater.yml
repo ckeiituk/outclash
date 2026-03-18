@@ -21,7 +21,9 @@ jobs:
           run_install: false
 
       - name: Install dependencies
-        run: SKIP_PREPARE=1 pnpm install
+        env:
+          SKIP_PREPARE: "1"
+        run: pnpm install
 
       - name: Release updater file
         run: pnpm updater
