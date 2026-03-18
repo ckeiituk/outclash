@@ -60,6 +60,10 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
+      - name: Install Linux build tools
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
+
       - name: Build
         if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         env:
