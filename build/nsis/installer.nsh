@@ -6,11 +6,20 @@
   SetShellVarContext current
 
   ; Check if old profiles.yaml exists and back it up
+  ; Priority: old Tauri OutClash > old Tauri Koala Clash
   ; Try Roaming AppData first, then Local AppData as fallback
-  IfFileExists "$APPDATA\io.github.koala-clash\profiles.yaml" 0 check_localappdata
+  IfFileExists "$APPDATA\io.github.outclash\profiles.yaml" 0 check_outclash_local
+    CopyFiles /SILENT "$APPDATA\io.github.outclash\profiles.yaml" "$TEMP\outclash-migration-profiles.yaml"
+    Goto backup_done
+  check_outclash_local:
+  IfFileExists "$LOCALAPPDATA\io.github.outclash\profiles.yaml" 0 check_koala_appdata
+    CopyFiles /SILENT "$LOCALAPPDATA\io.github.outclash\profiles.yaml" "$TEMP\outclash-migration-profiles.yaml"
+    Goto backup_done
+  check_koala_appdata:
+  IfFileExists "$APPDATA\io.github.koala-clash\profiles.yaml" 0 check_koala_local
     CopyFiles /SILENT "$APPDATA\io.github.koala-clash\profiles.yaml" "$TEMP\outclash-migration-profiles.yaml"
     Goto backup_done
-  check_localappdata:
+  check_koala_local:
   IfFileExists "$LOCALAPPDATA\io.github.koala-clash\profiles.yaml" 0 backup_done
     CopyFiles /SILENT "$LOCALAPPDATA\io.github.koala-clash\profiles.yaml" "$TEMP\outclash-migration-profiles.yaml"
   backup_done:
