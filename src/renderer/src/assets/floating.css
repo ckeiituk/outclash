@@ -64,7 +64,8 @@
     BlinkMacSystemFont;
 }
 
-html {
+html,
+body {
   background: none !important;
   background-color: transparent !important;
 }

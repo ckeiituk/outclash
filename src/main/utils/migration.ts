@@ -6,7 +6,6 @@ import { dataDir, logPath } from './dirs'
 import { parseYaml } from './yaml'
 import { addProfileItem } from '../config'
 
-// Intentionally kept as old app ID for migrating data from koala-clash installations
 const OLD_APP_ID = 'io.github.koala-clash'
 const MIGRATION_DONE_MARKER = '.migration-done'
 const MIGRATION_FILE = '.migration-profiles.yaml'

@@ -56,7 +56,6 @@ const ProcessItemComponent: React.FC<Props> = ({ process, displayIcon, onClick }
         className={`
           w-full h-full flex items-center cursor-pointer rounded-xl border
           transition-all duration-200 ease-out
-          hover:scale-[1.003]
           ${
             hasActive
               ? 'border-stroke-power-on/30 bg-linear-to-r from-gradient-start-power-on/[0.06] to-card/40 hover:border-stroke-power-on/50 shadow-sm'

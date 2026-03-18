@@ -64,6 +64,10 @@ const AppearanceConfig: React.FC<AppearanceConfigProps> = (props) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    setLocalShowFloating(showFloating)
+  }, [showFloating])
+
+  useEffect(() => {
     resolveThemes().then((themes) => {
       setCustomThemes(themes)
     })
@@ -118,9 +122,7 @@ const AppearanceConfig: React.FC<AppearanceConfigProps> = (props) => {
               if (value) {
                 await showFloatingWindow()
                 timeoutRef.current = setTimeout(async () => {
-                  if (localShowFloating) {
-                    await patchAppConfig({ showFloatingWindow: value })
-                  }
+                  await patchAppConfig({ showFloatingWindow: value })
                   timeoutRef.current = null
                 }, 1000)
               } else {

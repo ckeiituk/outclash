@@ -118,6 +118,26 @@ export async function getCurrentProfileItem(): Promise<ProfileItem> {
   return (await getProfileItem(current)) || { id: 'default', type: 'local', name: t('ui.blankSubscription') }
 }
 
+async function downloadLogoAsBase64(
+  logoUrl: string,
+  proxy?: { protocol: string; host: string; port: number }
+): Promise<string | null> {
+  try {
+    const httpsAgent = new https.Agent()
+    const res = await axios.get(logoUrl, {
+      httpsAgent,
+      ...(proxy && { proxy }),
+      responseType: 'arraybuffer',
+      timeout: 10000
+    })
+    const contentType = res.headers['content-type'] || 'image/png'
+    const base64 = Buffer.from(res.data).toString('base64')
+    return `data:${contentType};base64,${base64}`
+  } catch {
+    return null
+  }
+}
+
 export async function createProfile(item: Partial<ProfileItem>): Promise<ProfileItem> {
   const id = item.id || new Date().getTime().toString(16)
   const newItem = {
@@ -232,7 +252,13 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
         k.toLowerCase().endsWith('profile-logo')
       )
       if (logoKey) {
-        newItem.logo = headers[logoKey]
+        const logoUrl = headers[logoKey]
+        const proxyConfig =
+          newItem.useProxy && mixedPort
+            ? { protocol: 'http', host: '127.0.0.1', port: mixedPort }
+            : undefined
+        const base64Logo = await downloadLogoAsBase64(logoUrl, proxyConfig)
+        newItem.logo = base64Logo || logoUrl
       }
       const supportUrlKey = Object.keys(headers).find((k) =>
         k.toLowerCase().endsWith('support-url')

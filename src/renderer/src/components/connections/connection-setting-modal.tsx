@@ -16,6 +16,13 @@ import {
   InputGroupText
 } from '@renderer/components/ui/input-group'
 import SettingItem from '../base/base-setting-item'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@renderer/components/ui/select'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { restartMihomoConnections } from '@renderer/utils/ipc'
 import { t } from 'i18next'
@@ -29,7 +36,12 @@ const ConnectionSettingModal: React.FC<Props> = (props) => {
   const { onClose } = props
   const { appConfig, patchAppConfig } = useAppConfig()
 
-  const { displayIcon = true, displayAppName = true, connectionInterval = 500 } = appConfig || {}
+  const {
+    displayIcon = true,
+    displayAppName = true,
+    connectionInterval = 500,
+    connectionListMode = 'process'
+  } = appConfig || {}
 
   return (
     <Dialog
@@ -38,11 +50,27 @@ const ConnectionSettingModal: React.FC<Props> = (props) => {
         if (!open) onClose()
       }}
     >
-      <DialogContent className="flag-emoji sm:max-w-md" showCloseButton={false}>
+      <DialogContent className="flag-emoji max-w-lg" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{t('pages.connections.connectionSettings')}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-1 py-2">
+          <SettingItem title={t('pages.connections.connectionListMode')} divider>
+            <Select
+              value={connectionListMode}
+              onValueChange={(v) => {
+                patchAppConfig({ connectionListMode: v as 'classic' | 'process' })
+              }}
+            >
+              <SelectTrigger className="w-45">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="classic">{t('pages.connections.classicView')}</SelectItem>
+                <SelectItem value="process">{t('pages.connections.processView')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingItem>
           <SettingItem title={t('connection.showAppIcon')} divider>
             <Switch
               checked={displayIcon}

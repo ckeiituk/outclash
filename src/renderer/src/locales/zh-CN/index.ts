@@ -40,7 +40,8 @@ export default {
     settings: '设置',
     hideSidebar: '隐藏',
     toggleSidebar: '展开',
-    updateAvailable: '更新'
+    updateAvailable: '更新',
+    loading: '加载中...'
   },
 
   validation: {
@@ -83,6 +84,7 @@ export default {
     nextStep: '下一步',
     prevStep: '上一步',
     done: '完成',
+    skipTour: '跳过',
     addProfileTitle: '添加订阅',
     addProfileDesc:
       '首页当前没有可用订阅，请先点击“添加订阅”；如果出现深链导入确认弹窗，也可以直接走该流程。',
@@ -293,7 +295,10 @@ export default {
       tableColumns: '列',
       processes: '个进程:',
       backToProcesses: '返回',
-      unknownProcess: '未知'
+      unknownProcess: '未知',
+      classicView: '经典视图',
+      processView: '按进程',
+      connectionListMode: '连接显示模式'
     },
     logs: {
       title: '实时日志',
@@ -760,7 +765,9 @@ export default {
       noResolve: '跳过 DNS 解析 (no-resolve)',
       src: '匹配来源 IP (src)',
       delete: '删除规则',
-      restore: '恢复规则'
+      restore: '恢复规则',
+      invalidPayload: '无效的规则内容',
+      expectedFormat: '期望格式'
     },
     openFile: '打开文件',
     delete: '删除',
@@ -918,6 +925,7 @@ export default {
     displaySingle: '单行',
     displayDouble: '双行',
     disconnectOnSwitch: '切换节点时断开连接',
+    expandProxyGroups: '默认展开代理组',
     delayTestUrl: '延迟测试地址',
     delayTestConcurrency: '延迟测试并发数量',
     delayTestUrlPlaceholder: '默认 https://www.gstatic.com/generate_204',

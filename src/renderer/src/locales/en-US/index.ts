@@ -40,7 +40,8 @@ export default {
     settings: 'Settings',
     hideSidebar: 'Hide',
     toggleSidebar: 'Expand',
-    updateAvailable: 'Update'
+    updateAvailable: 'Update',
+    loading: 'Loading...'
   },
 
   validation: {
@@ -220,7 +221,10 @@ export default {
       tableColumns: 'Columns',
       processes: 'Processes:',
       backToProcesses: 'Back',
-      unknownProcess: 'Unknown'
+      unknownProcess: 'Unknown',
+      classicView: 'Classic view',
+      processView: 'By process',
+      connectionListMode: 'Connections display mode'
     },
     logs: {
       title: 'Real-time Logs',
@@ -701,7 +705,9 @@ export default {
       noResolve: 'Skip DNS resolution (no-resolve)',
       src: 'Match source IP (src)',
       delete: 'Delete rule',
-      restore: 'Restore rule'
+      restore: 'Restore rule',
+      invalidPayload: 'Invalid payload',
+      expectedFormat: 'Expected format'
     },
     openFile: 'Open File',
     delete: 'Delete',
@@ -862,6 +868,7 @@ export default {
     displaySingle: 'Single line',
     displayDouble: 'Double line',
     disconnectOnSwitch: 'Disconnect on Node Switch',
+    expandProxyGroups: 'Expand Groups by Default',
     delayTestUrl: 'Delay Test URL',
     delayTestConcurrency: 'Delay Test Concurrency',
     delayTestUrlPlaceholder: 'Default: https://www.gstatic.com/generate_204',
@@ -889,6 +896,7 @@ export default {
     nextStep: 'Next',
     prevStep: 'Previous',
     done: 'Done',
+    skipTour: 'Skip',
     addProfileTitle: 'Add Profile',
     addProfileDesc:
       'There are no profiles on Home yet. Click "Add Profile" to begin, or use the deep-link import dialog if it appears.',

@@ -60,7 +60,7 @@ const FloatingApp: React.FC = () => {
 
   return (
     <div className="app-drag h-screen w-screen overflow-hidden">
-      <div className="floating-bg border border-stroke flex rounded-full bg-background h-[calc(100%-2px)] w-[calc(100%-2px)]">
+      <div className="floating-bg border border-stroke flex rounded-full bg-background h-full w-full">
         <div className="flex justify-center items-center h-full aspect-square">
           <div
             onContextMenu={(e) => {

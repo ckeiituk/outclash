@@ -18,14 +18,11 @@ function TooltipProvider({
   )
 }
 
-/**
- * Tracks whether the window just regained focus.
- * Tooltip opening is suppressed until a real pointermove occurs,
- * preventing phantom tooltips caused by alt+tab.
- */
 const windowFocusSuppress = {
   suppressed: false,
   init: false,
+  anchorX: -1,
+  anchorY: -1,
 }
 
 function initWindowFocusTracking(): void {
@@ -34,10 +31,22 @@ function initWindowFocusTracking(): void {
 
   window.addEventListener("blur", () => {
     windowFocusSuppress.suppressed = true
+    windowFocusSuppress.anchorX = -1
+    windowFocusSuppress.anchorY = -1
   })
 
-  window.addEventListener("pointermove", () => {
-    windowFocusSuppress.suppressed = false
+  window.addEventListener("pointermove", (e: PointerEvent) => {
+    if (!windowFocusSuppress.suppressed) return
+
+    if (windowFocusSuppress.anchorX === -1) {
+      windowFocusSuppress.anchorX = e.clientX
+      windowFocusSuppress.anchorY = e.clientY
+    } else if (
+      e.clientX !== windowFocusSuppress.anchorX ||
+      e.clientY !== windowFocusSuppress.anchorY
+    ) {
+      windowFocusSuppress.suppressed = false
+    }
   }, { passive: true })
 }
 
@@ -67,7 +76,6 @@ function Tooltip({
     [isControlled, onOpenChangeProp]
   )
 
-  // Force-close when window loses focus (handles already-open tooltips)
   React.useEffect(() => {
     if (!open) return
 

@@ -1,6 +1,6 @@
 import BasePage from '@renderer/components/base/base-page'
 import LogItem from '@renderer/components/logs/log-item'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Separator } from '@renderer/components/ui/separator'
 import { Input } from '@renderer/components/ui/input'
@@ -40,9 +40,10 @@ window.electron.ipcRenderer.on('mihomoLogs', (_e, log: ControllerLog) => {
 
 const Logs: React.FC = () => {
   const { t } = useTranslation()
-  const [logs, setLogs] = useState<ControllerLog[]>(cachedLogs.log)
+  const [logs, setLogs] = useState<ControllerLog[]>([...cachedLogs.log])
   const [filter, setFilter] = useState('')
   const [trace, setTrace] = useState(true)
+  const traceRef = useRef(trace)
 
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const filteredLogs = useMemo(() => {
@@ -51,6 +52,17 @@ const Logs: React.FC = () => {
       return includesIgnoreCase(log.payload, filter) || includesIgnoreCase(log.type, filter)
     })
   }, [logs, filter])
+
+  const toggleTrace = useCallback(() => {
+    setTrace((prev) => {
+      const next = !prev
+      traceRef.current = next
+      if (next) {
+        setLogs([...cachedLogs.log])
+      }
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!trace) return
@@ -65,7 +77,9 @@ const Logs: React.FC = () => {
   useEffect(() => {
     const old = cachedLogs.trigger
     cachedLogs.trigger = (a): void => {
-      setLogs([...a])
+      if (traceRef.current) {
+        setLogs([...a])
+      }
     }
     return (): void => {
       cachedLogs.trigger = old
@@ -87,9 +101,7 @@ const Logs: React.FC = () => {
             className={cn('ml-2', trace && 'bg-primary text-primary-foreground')}
             variant={trace ? 'default' : 'outline'}
             title={t('logs.autoScroll')}
-            onClick={() => {
-              setTrace((prev) => !prev)
-            }}
+            onClick={toggleTrace}
           >
             <MapPin className="text-lg" />
           </Button>

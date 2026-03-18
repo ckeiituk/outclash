@@ -40,7 +40,8 @@ export default {
     settings: 'Настройки',
     hideSidebar: 'Скрыть',
     toggleSidebar: 'Раскрыть',
-    updateAvailable: 'Обновление'
+    updateAvailable: 'Обновление',
+    loading: 'Загрузка...'
   },
 
   validation: {
@@ -221,7 +222,10 @@ export default {
       tableColumns: 'Колонки',
       processes: 'Процессов:',
       backToProcesses: 'Назад',
-      unknownProcess: 'Неизвестный'
+      unknownProcess: 'Неизвестный',
+      classicView: 'Классический вид',
+      processView: 'По процессам',
+      connectionListMode: 'Режим отображения соединений'
     },
     logs: {
       title: 'Логи',
@@ -701,7 +705,9 @@ export default {
       noResolve: 'Не выполнять DNS-резолвинг (no-resolve)',
       src: 'Сопоставлять с исходным IP (src)',
       delete: 'Удалить правило',
-      restore: 'Восстановить правило'
+      restore: 'Восстановить правило',
+      invalidPayload: 'Неверное значение',
+      expectedFormat: 'Ожидаемый формат'
     },
     openFile: 'Открыть файл',
     delete: 'Удалить',
@@ -862,6 +868,7 @@ export default {
     displaySingle: 'Одна строка',
     displayDouble: 'Две строки',
     disconnectOnSwitch: 'Отключаться при смене узла',
+    expandProxyGroups: 'Раскрывать группы по умолчанию',
     delayTestUrl: 'URL для теста задержки',
     delayTestConcurrency: 'Количество параллельных тестов задержки',
     delayTestUrlPlaceholder: 'По умолчанию: https://www.gstatic.com/generate_204',
@@ -889,6 +896,7 @@ export default {
     nextStep: 'Далее',
     prevStep: 'Назад',
     done: 'Готово',
+    skipTour: 'Пропустить',
     addProfileTitle: 'Добавить профиль',
     addProfileDesc:
       'На главной пока нет профилей. Нажмите «Добавить профиль», чтобы начать.',

@@ -10,6 +10,7 @@ type PopoverConfig = {
   align?: 'start' | 'center' | 'end'
   showButtons?: PopoverButton[]
   onNextClick?: (element: Element | undefined, step: DriveStep, options: DriverStepOptions) => void
+  onCloseClick?: (element: Element | undefined, step: DriveStep, options: DriverStepOptions) => void
 }
 
 type DriveStep = {
@@ -23,6 +24,19 @@ type DriveStep = {
   onDeselected?: (element: Element | undefined, step: DriveStep, options: DriverStepOptions) => void
 }
 
+type PopoverDOM = {
+  wrapper: HTMLElement
+  arrow: HTMLElement
+  title: HTMLElement
+  description: HTMLElement
+  footer: HTMLElement
+  footerButtons: HTMLElement
+  previousButton: HTMLElement
+  nextButton: HTMLElement
+  closeButton: HTMLElement
+  progress: HTMLElement
+}
+
 type DriverConfig = {
   showProgress?: boolean
   showButtons?: PopoverButton[]
@@ -34,6 +48,8 @@ type DriverConfig = {
   overlayOpacity?: number
   steps: DriveStep[]
   onDestroyed?: () => void
+  onCloseClick?: (element: Element | undefined, step: DriveStep, options: DriverStepOptions) => void
+  onPopoverRender?: (popover: PopoverDOM, options: { config: DriverConfig; state: unknown; driver: Driver }) => void
 }
 
 type Driver = {
@@ -308,7 +324,7 @@ function createAutoClickStep({
       description,
       side,
       align,
-      showButtons: ['next', 'previous']
+      showButtons: ['previous']
     },
     onHighlighted: (highlightedElement, _step, options): void => {
       detachClickListener?.()
@@ -417,7 +433,7 @@ function createAutoAdvanceStep({
       description,
       side,
       align,
-      showButtons: ['next', 'previous']
+      showButtons: ['previous']
     },
     onHighlighted: (_highlightedElement, _step, options): void => {
       stopWatcher?.()
@@ -665,6 +681,16 @@ async function createDriverWithMode(mode: GuideMode): Promise<Driver> {
     progressText: '{{current}} / {{total}}',
     overlayOpacity: 0.9,
     steps: buildGuideSteps(mode),
+    onCloseClick: (_element, _step, options): void => {
+      markMainGuideCompleted()
+      options.driver.destroy()
+    },
+    onPopoverRender: (popover): void => {
+      const skipButton = document.createElement('button')
+      skipButton.innerText = t('guide.skipTour')
+      skipButton.className = 'driver-popover-close-btn driver-popover-skip-btn'
+      popover.footerButtons.appendChild(skipButton)
+    },
     onDestroyed: (): void => {
       removeFirstProxyGroupOverlay()
       clearGuideModeObserver()

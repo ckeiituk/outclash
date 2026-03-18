@@ -141,7 +141,7 @@ const EditInfoModal: React.FC<Props> = (props) => {
       <DialogContent
         className={cn(
           'sm:max-w-none',
-          'w-[580px]'
+          'w-120'
         )}
         showCloseButton={false}
       >

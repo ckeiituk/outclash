@@ -693,6 +693,7 @@ const RuleListItemBase: React.FC<RuleListItemProps> = ({
   proxyGroups
 }) => {
   const { t } = useTranslation()
+  const [proxyPopoverOpen, setProxyPopoverOpen] = useState(false)
   const {
     attributes,
     listeners,
@@ -768,7 +769,7 @@ const RuleListItemBase: React.FC<RuleListItemProps> = ({
     )
 
     const proxySelector = (
-      <Popover modal>
+      <Popover modal open={proxyPopoverOpen} onOpenChange={setProxyPopoverOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" className="w-full justify-between font-normal h-8 text-xs">
             <span className="truncate">{editingRule.proxy}</span>
@@ -785,7 +786,10 @@ const RuleListItemBase: React.FC<RuleListItemProps> = ({
                   <CommandItem
                     key={group}
                     value={group}
-                    onSelect={(v) => onEditingRuleChange({ ...editingRule, proxy: v })}
+                    onSelect={(v) => {
+                      onEditingRuleChange({ ...editingRule, proxy: v })
+                      setProxyPopoverOpen(false)
+                    }}
                   >
                     {group}
                     <CheckIcon
@@ -1003,6 +1007,7 @@ const EditRulesModal: React.FC<Props> = (props) => {
   const [isLoading, setIsLoading] = useState(true)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editingRule, setEditingRule] = useState<RuleItem | null>(null)
+  const [newRuleProxyOpen, setNewRuleProxyOpen] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [activeDragSize, setActiveDragSize] = useState<{ width: number; height: number } | null>(
     null
@@ -1322,7 +1327,7 @@ const EditRulesModal: React.FC<Props> = (props) => {
       !validateRulePayload(editingRule.type, editingRule.payload)
     ) {
       toast.error(
-        (t('profiles.editRules.invalidPayload') || 'Invalid payload') +
+        (t('profile.editRules.invalidPayload') || 'Invalid payload') +
           ': ' +
           getRuleExample(editingRule.type)
       )
@@ -1387,7 +1392,7 @@ const EditRulesModal: React.FC<Props> = (props) => {
       return true
     } catch (e) {
       toast.error(
-        t('profiles.editRules.saveError') + ': ' + (e instanceof Error ? e.message : String(e))
+        t('profile.editRules.saveError') + ': ' + (e instanceof Error ? e.message : String(e))
       )
       return false
     }
@@ -1492,7 +1497,7 @@ const EditRulesModal: React.FC<Props> = (props) => {
         newRule.payload.trim() !== '' &&
         !validateRulePayload(newRule.type, newRule.payload)
       ) {
-        toast.error(t('profiles.editRules.invalidPayload') + ': ' + getRuleExample(newRule.type))
+        toast.error(t('profile.editRules.invalidPayload') + ': ' + getRuleExample(newRule.type))
         return
       }
 
@@ -1838,7 +1843,7 @@ const EditRulesModal: React.FC<Props> = (props) => {
 
                 <div className="flex flex-col gap-1.5">
                   <Label>{t('profile.editRules.proxy')}</Label>
-                  <Popover modal>
+                  <Popover modal open={newRuleProxyOpen} onOpenChange={setNewRuleProxyOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -1852,7 +1857,7 @@ const EditRulesModal: React.FC<Props> = (props) => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="p-0"
+                      className="p-0 bg-card/90 h-60"
                       align="start"
                       style={{ width: 'var(--radix-popper-anchor-width)' }}
                     >
@@ -1865,7 +1870,10 @@ const EditRulesModal: React.FC<Props> = (props) => {
                               <CommandItem
                                 key={group}
                                 value={group}
-                                onSelect={(value) => setNewRule({ ...newRule, proxy: value })}
+                                onSelect={(value) => {
+                                  setNewRule({ ...newRule, proxy: value })
+                                  setNewRuleProxyOpen(false)
+                                }}
                               >
                                 {group}
                                 <CheckIcon
