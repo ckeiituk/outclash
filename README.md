@@ -1,60 +1,65 @@
 <h1 align="center">
-  <img src="./src-tauri/icons/icon.png" alt="Clash" width="128" />
+  <img src="./build/icon.png" alt="OutClash" width="128" />
   <br>
-  Fork of <a href="https://github.com/clash-verge-rev/clash-verge-rev">Clash Verge Rev</a>
-  <br>
+  OutClash
 </h1>
 
-<h3 align="center">
-A Clash Meta GUI based on <a href="https://github.com/tauri-apps/tauri">Tauri</a>.
-</h3>
-
-![Preview](./docs/preview.png)
-
-## Install
-
-Go to the [Release page](https://github.com/ckeiituk/clash-verge-rev-lite/releases) to download the corresponding installation package<br>
-Supports Windows (x64/x86), Linux (x64/arm64) and macOS 10.15+ (intel/apple).
-
-### Telegram channel: ---
+<p align="center">
+A lightweight, cross-platform GUI client for managing <a href="https://github.com/MetaCubeX/mihomo">Clash/Mihomo</a> proxy configurations. Built with Electron, React, and TypeScript.
+</p>
 
 ## Features
 
-- Based on the powerful Rust and Tauri 2 frameworks.
-- Built-in [Clash.Meta(mihomo)](https://github.com/MetaCubeX/mihomo) kernel with support for switching between `Alpha` versions of the kernel.
-- Simple and beautiful user interface with support for custom theme colors, agent group/tray icons, and `CSS Injection`.
-- Configuration file management, configuration file syntax hints.
-- System Agent and Guard, `TUN (Virtual NIC)` mode.
-- Visual node and rule editing
-- WebDav configuration backup and synchronization
+- **Proxy Management** — visual node selection, proxy groups, latency testing
+- **TUN Mode** — virtual NIC for transparent proxying at the network level
+- **System Proxy** — automatic system proxy configuration and guard
+- **Profile Management** — import, edit, and switch between subscription profiles
+- **Rule Editor** — visual editing of routing rules
+- **Connection Monitor** — real-time view of active connections and traffic statistics
+- **WebDAV Backup** — sync and restore configurations across devices
+- **Deep Links** — supports `clash://`, `mihomo://`, and `outclash://` URI schemes
+- **Theming** — custom theme colors and CSS injection
+
+## Installation
+
+Download the latest release for your platform from the [Releases](https://github.com/ckeiituk/outclash/releases) page.
+
+| Platform | Formats |
+|----------|---------|
+| Windows  | NSIS installer, 7z portable |
+| macOS    | pkg |
+| Linux    | deb, rpm, pacman |
 
 ## Development
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for more details.
+Prerequisites: [Node.js](https://nodejs.org/) (LTS) and [pnpm](https://pnpm.io/) 10+.
 
-To run the development server, execute the following commands after all prerequisites for **Tauri** are installed:
-
-```shell
-pnpm i
-pnpm run check
+```sh
+pnpm install
 pnpm dev
 ```
 
-## Contributions
+### Build
 
-Issue and PR welcome!
+```sh
+# Windows
+pnpm build:win
 
-## Acknowledgement
+# macOS
+pnpm build:mac
 
-Clash Verge rev was based on or inspired by these projects and so on:
+# Linux
+pnpm build:linux
+```
 
-- [zzzgydi/clash-verge](https://github.com/zzzgydi/clash-verge): A Clash GUI based on tauri. Supports Windows, macOS and Linux.
-- [tauri-apps/tauri](https://github.com/tauri-apps/tauri): Build smaller, faster, and more secure desktop applications with a web frontend.
-- [Dreamacro/clash](https://github.com/Dreamacro/clash): A rule-based tunnel in Go.
-- [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo): A rule-based tunnel in Go.
-- [Fndroid/clash_for_windows_pkg](https://github.com/Fndroid/clash_for_windows_pkg): A Windows/macOS GUI based on Clash.
-- [vitejs/vite](https://github.com/vitejs/vite): Next generation frontend tooling. It's fast!
+## Credits
+
+OutClash is based on [koala-clash](https://github.com/coolcoala/koala-clash) by coolcoala and xishang0128. It also draws from the following projects:
+
+- [clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev) — the original Clash Verge Rev GUI
+- [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) — the Clash Meta proxy kernel
+- [Electron](https://www.electronjs.org/) — cross-platform desktop application framework
 
 ## License
 
-GPL-3.0 License. See [License here](./LICENSE) for details.
+[GPL-3.0](./LICENSE)

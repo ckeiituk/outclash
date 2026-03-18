@@ -3,15 +3,12 @@ name: Auto Build
 on:
   workflow_dispatch:
 #  schedule:
-#    # UTC+8 0,6,12,18
 #    - cron: "0 16,22,4,10 * * *"
 permissions: write-all
 env:
   TAG_NAME: autobuild
   TAG_CHANNEL: AutoBuild
-  CARGO_INCREMENTAL: 0
-  RUST_BACKTRACE: short
-  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_API_KEY_CONTENT != '' }}
 concurrency:
   group: "${{ github.workflow }} - ${{ github.head_ref || github.ref }}"
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -36,11 +33,11 @@ jobs:
             exit 0
           fi
 
-          CURRENT_VERSION=$(cat package.json | jq -r '.version')
+          CURRENT_VERSION=$(jq -r '.version' package.json)
           echo "Current version: $CURRENT_VERSION"
 
           git checkout HEAD~1 package.json
-          PREVIOUS_VERSION=$(cat package.json | jq -r '.version')
+          PREVIOUS_VERSION=$(jq -r '.version' package.json)
           echo "Previous version: $PREVIOUS_VERSION"
 
           git checkout HEAD package.json
@@ -53,15 +50,11 @@ jobs:
 
           CURRENT_SRC_HASH=$(git rev-parse HEAD:src)
           PREVIOUS_SRC_HASH=$(git rev-parse HEAD~1:src 2>/dev/null || echo "")
-          CURRENT_TAURI_HASH=$(git rev-parse HEAD:src-tauri 2>/dev/null || echo "")
-          PREVIOUS_TAURI_HASH=$(git rev-parse HEAD~1:src-tauri 2>/dev/null || echo "")
 
           echo "Current src hash: $CURRENT_SRC_HASH"
           echo "Previous src hash: $PREVIOUS_SRC_HASH"
-          echo "Current tauri hash: $CURRENT_TAURI_HASH"
-          echo "Previous tauri hash: $PREVIOUS_TAURI_HASH"
 
-          if [ "$CURRENT_SRC_HASH" != "$PREVIOUS_SRC_HASH" ] || [ "$CURRENT_TAURI_HASH" != "$PREVIOUS_TAURI_HASH" ]; then
+          if [ "$CURRENT_SRC_HASH" != "$PREVIOUS_SRC_HASH" ]; then
             echo "Source directories changed"
             echo "should_run=true" >> $GITHUB_OUTPUT
           else
@@ -124,22 +117,20 @@ jobs:
           ## Which version should I download?
 
           ### MacOS
-          - MacOS Intel Chip: x64.dmg
-          - MacOS Apple M Chip: aarch64.dmg
+          - MacOS Intel Chip: x64.pkg
+          - MacOS Apple M Chip: arm64.pkg
 
           ### Linux
-          - Linux 64-bit: amd64.deb/amd64.rpm
+          - Linux 64-bit: amd64.deb/x86_64.rpm
           - Linux arm64: arm64.deb/aarch64.rpm
-          - Linux armv7: armhf.deb/armhfp.rpm
 
-          ### Windows (Win7 is no longer supported)
+          ### Windows
           #### Normal version (recommended)
           - 64-bit: x64-setup.exe
           - arm64: arm64-setup.exe
-          #### Portable version is no longer available with many problems
-          #### Built-in Webview version 2 (large size, only used in enterprise version of the system or can not install webview2)
-          - 64-bit: x64_fixed_webview2-setup.exe
-          - arm64: arm64_fixed_webview2-setup.exe
+          #### Portable version
+          - 64-bit: x64-portable.7z
+          - arm64: arm64-portable.7z
 
           Created at ${{ env.BUILDTIME }}.
           EOF
@@ -148,7 +139,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: "Clash Verge Rev ${{ env.TAG_CHANNEL }}"
+          name: "OutClash ${{ env.TAG_CHANNEL }}"
           body_path: release.txt
           prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -162,16 +153,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
       - name: Remove old assets from release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ env.TAG_NAME }}
         run: |
-          VERSION=$(cat package.json | jq -r '.version')
+          VERSION=$(jq -r '.version' package.json)
           assets=$(gh release view "$TAG_NAME" --json assets -q '.assets[].name' || true)
           for asset in $assets; do
             if [[ "$asset" != *"$VERSION"* ]]; then
@@ -180,65 +167,54 @@ jobs:
             fi
           done
 
-  autobuild-x86-windows-macos-linux:
-    name: Autobuild x86 Windows, MacOS and Linux
+  autobuild:
+    name: Autobuild
     needs: update_tag
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            arch: x64
           - os: windows-latest
-            target: aarch64-pc-windows-msvc
+            arch: arm64
           - os: macos-latest
-            target: aarch64-apple-darwin
+            arch: arm64
           - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
+            arch: x64
+          - os: ubuntu-latest
+            arch: x64
+          - os: ubuntu-latest
+            arch: arm64
+
     runs-on: ${{ matrix.os }}
-    env:
-      CARGO_NET_RETRY: "5"
-      CARGO_HTTP_CHECK_REVOKE: "false"
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          cache-all-crates: true
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
-
-      - name: Install dependencies (ubuntu only)
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libxslt1.1 libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          run_install: false
 
       - name: Install Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "pnpm"
 
-      - name: Pnpm install and check
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies and prepare
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+        shell: bash
         run: |
-          pnpm i
-          pnpm run prebuild ${{ matrix.target }}
+          SKIP_PREPARE=1 pnpm install
+          pnpm prepare --${{ matrix.arch }}
+
+      - name: Install Build Tools (Linux pacman)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
 
       - name: Skip macOS build (signing secrets missing)
         if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
@@ -246,261 +222,53 @@ jobs:
           echo "Skipping macOS build: signing secrets missing."
           exit 0
 
-      - name: Release ${{ env.TAG_CHANNEL }} Version
-        run: pnpm release-version ${{ env.TAG_NAME }}
+      - name: Create Apple API Key file
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true'
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
-      - name: Tauri build
+      - name: Build
         if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
-        uses: tauri-apps/tauri-action@v0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE || '') }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
+          CSC_NAME: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_API_KEY_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_ISSUER: ${{ matrix.os == 'macos-latest' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_API_KEY: ${{ matrix.os == 'macos-latest' && format('~/.appstoreconnect/private_keys/AuthKey_{0}.p8', secrets.APPLE_API_KEY) || '' }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        with:
-          tagName: ${{ env.TAG_NAME }}
-          releaseName: "Clash Verge Rev ${{ env.TAG_CHANNEL }}"
-          releaseBody: "More new features are now supported."
-          releaseDraft: false
-          prerelease: true
-          tauriScript: pnpm
-          args: --target ${{ matrix.target }}
-
-  autobuild-arm-linux:
-    name: Autobuild ARM Linux
-    needs: update_tag
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            target: aarch64-unknown-linux-gnu
-            arch: arm64
-          - os: ubuntu-22.04
-            target: armv7-unknown-linux-gnueabihf
-            arch: armhf
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          cache-all-crates: true
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Pnpm install and check
+        shell: bash
         run: |
-          pnpm i
-          pnpm run prebuild ${{ matrix.target }}
-
-      - name: Release ${{ env.TAG_CHANNEL }} Version
-        run: pnpm release-version ${{ env.TAG_NAME }}
-
-      - name: Setup for linux
-        run: |
-          sudo ls -lR /etc/apt/
-
-          cat > /tmp/sources.list << EOF
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy main multiverse universe restricted
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-security main multiverse universe restricted
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-updates main multiverse universe restricted
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-backports main multiverse universe restricted
-
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main multiverse universe restricted
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main multiverse universe restricted
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main multiverse universe restricted
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main multiverse universe restricted
-          EOF
-
-          sudo mv /etc/apt/sources.list /etc/apt/sources.list.default
-          sudo mv /tmp/sources.list /etc/apt/sources.list
-
-          sudo dpkg --add-architecture ${{ matrix.arch }}
-          sudo apt-get update -y
-          sudo apt-get -f install -y
-
-          sudo apt-get install -y \
-            linux-libc-dev:${{ matrix.arch }} \
-            libc6-dev:${{ matrix.arch }}
-
-          sudo apt-get install -y \
-            libxslt1.1:${{ matrix.arch }} \
-            libwebkit2gtk-4.1-dev:${{ matrix.arch }} \
-            libayatana-appindicator3-dev:${{ matrix.arch }} \
-            libssl-dev:${{ matrix.arch }} \
-            patchelf:${{ matrix.arch }} \
-            librsvg2-dev:${{ matrix.arch }}
-
-      - name: Install aarch64 tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt install -y \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu
-
-      - name: Install armv7 tools
-        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
-        run: |
-          sudo apt install -y \
-            gcc-arm-linux-gnueabihf \
-            g++-arm-linux-gnueabihf
-
-      - name: Build for Linux
-        run: |
-          export PKG_CONFIG_ALLOW_CROSS=1
-          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/:$PKG_CONFIG_PATH
-            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/
-          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig/:$PKG_CONFIG_PATH
-            export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            pnpm build:win --${{ matrix.arch }}
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            pnpm build:linux --${{ matrix.arch }}
+          else
+            pnpm build:mac --${{ matrix.arch }}
           fi
-          pnpm build --target ${{ matrix.target }}
-        env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
 
-      - name: Get Version
+      - name: Add Portable Flag
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          sudo apt-get update
-          sudo apt-get install jq
-          echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
-          echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
+          New-Item -Path "PORTABLE" -ItemType File
+          Get-ChildItem dist/*portable.7z | ForEach-Object {
+            7z a $_.FullName PORTABLE
+          }
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
-          name: "Clash Verge Rev ${{ env.TAG_CHANNEL }}"
+          name: "OutClash ${{ env.TAG_CHANNEL }}"
           prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
           files: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
-
-  autobuild-x86-arm-windows_webview2:
-    name: Autobuild x86 and ARM Windows with WebView2
-    needs: update_tag
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            arch: x64
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            arch: arm64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          cache-all-crates: true
-          save-if: ${{ github.ref == 'refs/heads/dev' }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "pnpm"
-
-      - name: Pnpm install and check
-        run: |
-          pnpm i
-          pnpm run prebuild ${{ matrix.target }}
-
-      - name: Release ${{ env.TAG_CHANNEL }} Version
-        run: pnpm release-version ${{ env.TAG_NAME }}
-
-      - name: Download WebView2 Runtime
-        run: |
-          invoke-webrequest -uri https://github.com/westinyang/WebView2RuntimeArchive/releases/download/133.0.3065.92/Microsoft.WebView2.FixedVersionRuntime.133.0.3065.92.${{ matrix.arch }}.cab -outfile Microsoft.WebView2.FixedVersionRuntime.133.0.3065.92.${{ matrix.arch }}.cab
-          Expand .\Microsoft.WebView2.FixedVersionRuntime.133.0.3065.92.${{ matrix.arch }}.cab -F:* ./src-tauri
-          Remove-Item .\src-tauri\tauri.windows.conf.json
-          Rename-Item .\src-tauri\webview2.${{ matrix.arch }}.json tauri.windows.conf.json
-
-      - name: Tauri build
-        id: build
-        uses: tauri-apps/tauri-action@v0
-        env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        with:
-          tauriScript: pnpm
-          args: --target ${{ matrix.target }}
-
-      - name: Rename
-        run: |
-          $files = Get-ChildItem ".\src-tauri\target\${{ matrix.target }}\release\bundle\nsis\*-setup.exe"
-          foreach ($file in $files) {
-            $newName = $file.Name -replace "-setup\.exe$", "_fixed_webview2-setup.exe"
-            Rename-Item $file.FullName $newName
-          }
-
-          $files = Get-ChildItem ".\src-tauri\target\${{ matrix.target }}\release\bundle\nsis\*.nsis.zip"
-          foreach ($file in $files) {
-            $newName = $file.Name -replace "-setup\.nsis\.zip$", "_fixed_webview2-setup.nsis.zip"
-            Rename-Item $file.FullName $newName
-          }
-
-          $files = Get-ChildItem ".\src-tauri\target\${{ matrix.target }}\release\bundle\nsis\*-setup.exe.sig"
-          foreach ($file in $files) {
-            $newName = $file.Name -replace "-setup\.exe\.sig$", "_fixed_webview2-setup.exe.sig"
-            Rename-Item $file.FullName $newName
-          }
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: "Clash Verge Rev ${{ env.TAG_CHANNEL }}"
-          prerelease: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
-
-      - name: Portable Bundle
-        run: pnpm portable-fixed-webview2 ${{ matrix.target }} --${{ env.TAG_NAME }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            dist/OutClash*

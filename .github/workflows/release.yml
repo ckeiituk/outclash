@@ -1,17 +1,13 @@
 name: Release Build
 
 on:
-  # 仅通过符合语义化的版本标签触发发布，避免在 main 上误触发。
   push:
     tags:
       - "v*.*.*"
 permissions: write-all
 env:
-  CARGO_INCREMENTAL: 0
-  RUST_BACKTRACE: short
-  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_ID != '' && secrets.APPLE_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
+  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_API_KEY_CONTENT != '' }}
 concurrency:
-  # only allow per workflow per commit (and not pr) to run at a time
   group: "${{ github.workflow }} - ${{ github.head_ref || github.ref }}"
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
@@ -22,11 +18,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
 
       - name: Check tag and package.json version
         run: |
@@ -67,9 +58,7 @@ jobs:
 
       - name: Get Version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-          echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
+          echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
           echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
 
       - name: Publish release (publish draft)
@@ -95,33 +84,21 @@ jobs:
 
           ## Which version should I download?
 
-          <!--
-          ### macOS
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-macos-aarch64.dmg"><img src="https://img.shields.io/badge/DMG-default?style=flat&logo=apple&label=Apple%20Silicon"></a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-macos-x64.dmg"><img src="https://img.shields.io/badge/DMG-default?style=flat&logo=apple&label=Intel"></a><br>
-          > :warning: **Warning**
-          If you get a notification that the application is corrupted when you run it on macOS, run this command:<br>
-          <code>sudo xattr -r -c /Applications/OutClash.app</code>
-          -->
-
           ### Linux
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-x86_64.deb"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-x86_64.rpm"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=fedora&label=RPM"> </a>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_amd64.deb"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_x86_64.rpm"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=fedora&label=RPM"> </a>
 
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-arm64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_aarch64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
 
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-armhf.deb"><img src="https://img.shields.io/badge/armhf-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-linux-armhf.rpm"><img src="https://img.shields.io/badge/armhfp-default?style=flat&logo=fedora&label=RPM"> </a>
-
-          ### Windows (Win7 is no longer supported)
+          ### Windows
           #### Normal version (recommended)
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-arm64-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
-          #### Portable version is no longer available with many problems
-          #### Built-in Webview version 2 (large size, only used in enterprise version of the system or can not install webview2)
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-x64_fixed_webview2-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash-windows-arm64_fixed_webview2-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_arm64-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
+
+          #### Portable version
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_x64-portable.7z"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=7z"></a><br>
+          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_arm64-portable.7z"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=7z"></a>
 
           Created at ${{ env.BUILDTIME }}.
           EOF
@@ -142,223 +119,22 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            arch: x64
           - os: windows-latest
-            target: aarch64-pc-windows-msvc
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          save-if: false
-
-      - name: Install dependencies (ubuntu only)
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            binutils \
-            clang \
-            lld \
-            pkg-config \
-            libc6-dev \
-            libxslt1.1 \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          run_install: false
-
-      - name: Pnpm install and check
-        run: |
-          pnpm i
-          pnpm run prebuild ${{ matrix.target }}
-
-      - name: Get Version (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $v = node -p "require('./package.json').version"
-          Add-Content -Path $env:GITHUB_ENV -Value "VERSION=$v"
-
-      - name: Get Version (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: node -e "console.log('VERSION=' + require('./package.json').version)" >> "$GITHUB_ENV"
-
-      - name: Sync version files (Cargo.toml, tauri.conf.json)
-        run: pnpm sync-version
-
-      - name: Verify version files
-        run: pnpm verify-version
-
-      - name: Skip macOS build (signing secrets missing)
-        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
-        run: |
-          echo "Skipping macOS build: signing secrets missing."
-          exit 0
-
-      - name: Tauri build
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
-        id: build
-        uses: tauri-apps/tauri-action@v0
-        env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          RUSTFLAGS: ${{ runner.os == 'Linux' && '-C link-self-contained=no' || '' }}
-        with:
-          tauriScript: pnpm
-          args: --target ${{ matrix.target }}
-
-      - name: Rename artifacts (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $base = Join-Path "src-tauri\target" "${{ matrix.target }}" "release\bundle\nsis"
-          if (-not (Test-Path $base)) { return }
-          $rules = @{
-            "*_x64-setup.exe"      = "OutClash-windows-x64-setup.exe"
-            "*_x64-setup.exe.sig"  = "OutClash-windows-x64-setup.exe.sig"
-            "*_x64-setup.nsis.zip" = "OutClash-windows-x64-setup.nsis.zip"
-            "*_arm64-setup.exe"      = "OutClash-windows-arm64-setup.exe"
-            "*_arm64-setup.exe.sig"  = "OutClash-windows-arm64-setup.exe.sig"
-            "*_arm64-setup.nsis.zip" = "OutClash-windows-arm64-setup.nsis.zip"
-          }
-          foreach ($pattern in $rules.Keys) {
-            $file = Get-ChildItem -Path $base -File | Where-Object { $_.Name -like $pattern } | Select-Object -First 1
-            if ($file) {
-              Rename-Item -LiteralPath $file.FullName -NewName $rules[$pattern] -Force
-            }
-          }
-
-      - name: Rename artifacts (Linux)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE="src-tauri/target/${{ matrix.target }}/release/bundle"
-          [ -d "$BASE" ] || exit 0
-          rename_glob() {
-            local pattern=$1 dest=$2 dir=$3
-            local match
-            match=$(find "$dir" -maxdepth 1 -type f -name "$pattern" | head -n 1 || true)
-            if [ -n "$match" ]; then
-              mv -f "$match" "$dir/$dest"
-            fi
-          }
-          DEB_DIR="$BASE/deb"
-          RPM_DIR="$BASE/rpm"
-          [ -d "$DEB_DIR" ] && {
-            rename_glob 'OutClash_*_amd64.deb' 'OutClash-linux-x86_64.deb' "$DEB_DIR"
-            rename_glob 'OutClash_*_arm64.deb' 'OutClash-linux-arm64.deb' "$DEB_DIR"
-            rename_glob 'OutClash_*_armhf.deb' 'OutClash-linux-armhf.deb' "$DEB_DIR"
-          }
-          [ -d "$RPM_DIR" ] && {
-            rename_glob 'OutClash-*-1.x86_64.rpm' 'OutClash-linux-x86_64.rpm' "$RPM_DIR"
-            rename_glob 'OutClash-*-1.aarch64.rpm' 'OutClash-linux-arm64.rpm' "$RPM_DIR"
-            rename_glob 'OutClash-*-1.armhfp.rpm' 'OutClash-linux-armhf.rpm' "$RPM_DIR"
-          }
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION }}
-          name: "OutClash v${{ env.VERSION }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fail_on_unmatched_files: false
-          files: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
-            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.tar.gz.sig
-
-      - name: Verify release assets (tag URLs)
-        env:
-          REPO: ${{ github.repository }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="v${{ env.VERSION }}"
-          urls=()
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            if [[ "${{ matrix.target }}" == "x86_64-pc-windows-msvc" ]]; then
-              urls+=("https://github.com/$REPO/releases/download/$TAG/OutClash-windows-x64-setup.exe")
-            else
-              urls+=("https://github.com/$REPO/releases/download/$TAG/OutClash-windows-arm64-setup.exe")
-            fi
-          else
-            case "${{ matrix.target }}" in
-              x86_64-unknown-linux-gnu)
-                urls+=(
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-x86_64.deb"
-                  "https://github.com/$REPO/releases/download/$TAG/OutClash-linux-x86_64.rpm"
-                ) ;;
-            esac
-          fi
-          for u in "${urls[@]}"; do
-            echo "Checking $u"
-            curl -fsSI --retry 5 --retry-delay 2 "$u" >/dev/null
-          done
-
-  release-for-linux-arm:
-    name: Release Build for Linux ARM
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            target: aarch64-unknown-linux-gnu
             arch: arm64
-          - os: ubuntu-22.04
-            target: armv7-unknown-linux-gnueabihf
-            arch: armhf
+          - os: macos-latest
+            arch: arm64
+          - os: macos-latest
+            arch: x64
+          - os: ubuntu-latest
+            arch: x64
+          - os: ubuntu-latest
+            arch: arm64
+
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          save-if: false
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -370,163 +146,19 @@ jobs:
         with:
           run_install: false
 
-      - name: Pnpm install and check
-        run: |
-          pnpm i
-          pnpm run prebuild ${{ matrix.target }}
-
-      - name: "Setup for linux"
-        run: |-
-          sudo ls -lR /etc/apt/
-
-          cat > /tmp/sources.list << EOF
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy main multiverse universe restricted
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-security main multiverse universe restricted
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-updates main multiverse universe restricted
-          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-backports main multiverse universe restricted
-
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main multiverse universe restricted
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main multiverse universe restricted
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main multiverse universe restricted
-          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main multiverse universe restricted
-          EOF
-
-          sudo mv /etc/apt/sources.list /etc/apt/sources.list.default
-          sudo mv /tmp/sources.list /etc/apt/sources.list
-
-          sudo dpkg --add-architecture ${{ matrix.arch }}
-          sudo apt update
-
-          sudo apt install -y \
-            linux-libc-dev:${{ matrix.arch }} \
-            libxslt1.1:${{ matrix.arch }} \
-            libwebkit2gtk-4.1-dev:${{ matrix.arch }} \
-            libayatana-appindicator3-dev:${{ matrix.arch }} \
-            libssl-dev:${{ matrix.arch }} \
-            patchelf:${{ matrix.arch }} \
-            librsvg2-dev:${{ matrix.arch }}
-
-      - name: "Install aarch64 tools"
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt install -y \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu
-
-      - name: "Install armv7 tools"
-        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
-        run: |
-          sudo apt install -y \
-            gcc-arm-linux-gnueabihf \
-            g++-arm-linux-gnueabihf
-
-      - name: Build for Linux
-        run: |
-          pnpm sync-version
-          pnpm verify-version
-          export PKG_CONFIG_ALLOW_CROSS=1
-          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/:$PKG_CONFIG_PATH
-            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/
-          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig/:$PKG_CONFIG_PATH
-            export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/
-          fi
-          pnpm build --target ${{ matrix.target }}
+      - name: Install dependencies and prepare
         env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-
-      - name: Get Version
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-          echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
-          echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
-
-      - name: Rename artifacts
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
         shell: bash
         run: |
-          set -euo pipefail
-          BASE="src-tauri/target/${{ matrix.target }}/release/bundle"
-          [ -d "$BASE" ] || exit 0
-          rename_glob() {
-            local pattern=$1 dest=$2 dir=$3
-            local match
-            match=$(find "$dir" -maxdepth 1 -type f -name "$pattern" | head -n 1 || true)
-            if [ -n "$match" ]; then
-              mv -f "$match" "$dir/$dest"
-            fi
-          }
-          DEB_DIR="$BASE/deb"
-          RPM_DIR="$BASE/rpm"
-          if [ -d "$DEB_DIR" ]; then
-            case "${{ matrix.arch }}" in
-              arm64) rename_glob 'OutClash_*_arm64.deb' 'OutClash-linux-arm64.deb' "$DEB_DIR" ;;
-              armhf) rename_glob 'OutClash_*_armhf.deb' 'OutClash-linux-armhf.deb' "$DEB_DIR" ;;
-            esac
-          fi
-          if [ -d "$RPM_DIR" ]; then
-            case "${{ matrix.arch }}" in
-              arm64) rename_glob 'OutClash-*-1.aarch64.rpm' 'OutClash-linux-arm64.rpm' "$RPM_DIR" ;;
-              armhf) rename_glob 'OutClash-*-1.armhfp.rpm' 'OutClash-linux-armhf.rpm' "$RPM_DIR" ;;
-            esac
-          fi
+          SKIP_PREPARE=1 pnpm install
+          pnpm prepare --${{ matrix.arch }}
 
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION }}
-          name: "OutClash v${{ env.VERSION }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          files: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
-
-  release-for-fixed-webview2:
-    name: Release Build for Fixed WebView2
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            arch: x64
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            arch: arm64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Install Rust Stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust Target
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          save-if: false
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          run_install: false
-
-      - name: Pnpm install and check
+      - name: Install Build Tools (Linux pacman)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          pnpm i
-          pnpm run prebuild ${{ matrix.target }}
+          sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
 
       - name: Get Version (Windows)
         if: runner.os == 'Windows'
@@ -540,51 +172,53 @@ jobs:
         shell: bash
         run: node -e "console.log('VERSION=' + require('./package.json').version)" >> "$GITHUB_ENV"
 
-      - name: Sync version files (Cargo.toml, tauri.conf.json)
-        run: pnpm sync-version
-
-      - name: Verify version files
-        run: pnpm verify-version
-
-      - name: Download WebView2 Runtime
+      - name: Skip macOS build (signing secrets missing)
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
         run: |
-          invoke-webrequest -uri https://github.com/westinyang/WebView2RuntimeArchive/releases/download/133.0.3065.92/Microsoft.WebView2.FixedVersionRuntime.133.0.3065.92.${{ matrix.arch }}.cab -outfile Microsoft.WebView2.FixedVersionRuntime.133.0.3065.92.${{ matrix.arch }}.cab
-          Expand .\Microsoft.WebView2.FixedVersionRuntime.133.0.3065.92.${{ matrix.arch }}.cab -F:* ./src-tauri
-          Remove-Item .\src-tauri\tauri.windows.conf.json
-          Rename-Item .\src-tauri\webview2.${{ matrix.arch }}.json tauri.windows.conf.json
+          echo "Skipping macOS build: signing secrets missing."
+          exit 0
 
-      - name: Tauri build
-        id: build
-        uses: tauri-apps/tauri-action@v0
+      - name: Create Apple API Key file
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true'
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+
+      - name: Build
+        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          RUSTFLAGS: ${{ runner.os == 'Linux' && '-C link-self-contained=no' || '' }}
-        with:
-          tauriScript: pnpm
-          args: --target ${{ matrix.target }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE || '') }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
+          CSC_NAME: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          APPLE_API_KEY_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_ISSUER: ${{ matrix.os == 'macos-latest' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_API_KEY: ${{ matrix.os == 'macos-latest' && format('~/.appstoreconnect/private_keys/AuthKey_{0}.p8', secrets.APPLE_API_KEY) || '' }}
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            pnpm build:win --${{ matrix.arch }}
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            pnpm build:linux --${{ matrix.arch }}
+          else
+            pnpm build:mac --${{ matrix.arch }}
+          fi
 
-      - name: Rename artifacts
+      - name: Add Portable Flag
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $base = Join-Path "src-tauri\target" "${{ matrix.target }}" "release\bundle\nsis"
-          if (-not (Test-Path $base)) { return }
-          $rules = @{
-            "*_x64-setup.exe"      = "OutClash-windows-x64_fixed_webview2-setup.exe"
-            "*_x64-setup.exe.sig"  = "OutClash-windows-x64_fixed_webview2-setup.exe.sig"
-            "*_x64-setup.nsis.zip" = "OutClash-windows-x64_fixed_webview2-setup.nsis.zip"
-            "*_arm64-setup.exe"      = "OutClash-windows-arm64_fixed_webview2-setup.exe"
-            "*_arm64-setup.exe.sig"  = "OutClash-windows-arm64_fixed_webview2-setup.exe.sig"
-            "*_arm64-setup.nsis.zip" = "OutClash-windows-arm64_fixed_webview2-setup.nsis.zip"
+          New-Item -Path "PORTABLE" -ItemType File
+          Get-ChildItem dist/*portable.7z | ForEach-Object {
+            7z a $_.FullName PORTABLE
           }
-          foreach ($pattern in $rules.Keys) {
-            $file = Get-ChildItem -Path $base -File | Where-Object { $_.Name -like $pattern } | Select-Object -First 1
-            if ($file) {
-              Rename-Item -LiteralPath $file.FullName -NewName $rules[$pattern] -Force
-            }
-          }
+
+      - name: Generate latest.yml
+        shell: bash
+        run: SKIP_CHANGELOG=1 pnpm updater
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
@@ -592,17 +226,14 @@ jobs:
           tag_name: v${{ env.VERSION }}
           name: "OutClash v${{ env.VERSION }}"
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*setup*
-
-      - name: Portable Bundle
-        run: pnpm portable-fixed-webview2 ${{ matrix.target }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          fail_on_unmatched_files: false
+          files: |
+            dist/OutClash*
 
   release-update:
     name: Release Update
     runs-on: ubuntu-latest
-    needs: [release, release-for-linux-arm]
+    needs: [release]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -612,47 +243,22 @@ jobs:
         with:
           node-version: "22"
 
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
           run_install: false
 
-      - name: Pnpm install
-        run: pnpm i
+      - name: Install dependencies
+        run: SKIP_PREPARE=1 pnpm install
 
       - name: Release updater file
         run: pnpm updater
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  release-update-for-fixed-webview2:
-    runs-on: ubuntu-latest
-    needs: [release-for-fixed-webview2]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: pnpm/action-setup@v4
-        name: Install pnpm
-        with:
-          run_install: false
-
-      - name: Pnpm install
-        run: pnpm i
-
-      - name: Release updater file
-        run: pnpm updater-fixed-webview2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   push-notify-to-telegram:
     runs-on: ubuntu-latest
-    needs: [release-update, release-update-for-fixed-webview2]
+    needs: [release-update]
     env:
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_TO_CHANNEL: ${{ secrets.TELEGRAM_TO_CHANNEL }}
@@ -681,9 +287,7 @@ jobs:
 
       - name: Get Version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-          echo "VERSION=$(cat package.json | jq '.version' | tr -d '"')" >> $GITHUB_ENV
+          echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
           echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
 
       - run: |

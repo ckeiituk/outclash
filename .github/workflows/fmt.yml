@@ -1,53 +1,22 @@
-# Copyright 2019-2024 Tauri Programme within The Commons Conservancy
-# SPDX-License-Identifier: Apache-2.0
-# SPDX-License-Identifier: MIT
-
 name: Check Formatting
 
 on:
   pull_request:
 
 jobs:
-  rustfmt:
-    runs-on: ubuntu-latest
-    env:
-      CARGO_NET_RETRY: "5"
-      CARGO_HTTP_CHECK_REVOKE: "false"
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: install Rust stable and rustfmt
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
-      - name: run cargo fmt
-        run: cargo fmt --manifest-path ./src-tauri/Cargo.toml --all -- --check
-
   prettier:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
-      - run: corepack enable
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
       - run: pnpm install --frozen-lockfile
-      - run: pnpm format:check
 
-  # taplo:
-  #   name: taplo (.toml files)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-
-  #     - name: install Rust stable
-  #       uses: dtolnay/rust-toolchain@stable
-
-  #     - name: install taplo-cli
-  #       uses: taiki-e/install-action@v2
-  #       with:
-  #         tool: taplo-cli
-
-  #     - run: taplo fmt --check --diff
+      - run: pnpm format --check
