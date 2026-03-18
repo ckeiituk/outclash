@@ -202,15 +202,15 @@ jobs:
         with:
           run_install: false
 
-      - name: Install dependencies and prepare
+      - name: Install dependencies
         env:
+          SKIP_PREPARE: "1"
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
-          SKIP_PREPARE: "1"
-        shell: bash
-        run: |
-          pnpm install
-          pnpm prepare --${{ matrix.arch }}
+        run: pnpm install
+
+      - name: Download sidecar binaries
+        run: pnpm prepare --${{ matrix.arch }}
 
       - name: Install Build Tools (Linux pacman)
         if: matrix.os == 'ubuntu-latest'
