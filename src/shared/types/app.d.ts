@@ -103,6 +103,7 @@ interface AppConfig {
   displayAppName?: boolean
   disableGPU: boolean
   mainSwitchMode?: 'tun' | 'sysproxy'
+  devMode?: boolean
 }
 
 interface ProfileConfig {
@@ -128,6 +129,7 @@ interface ProfileItem {
   announce?: string
   logo?: string
   supportUrl?: string
+  customHwid?: string
 }
 
 interface SubscriptionUserInfo {

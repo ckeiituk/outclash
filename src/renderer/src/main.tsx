@@ -7,7 +7,7 @@ import '@renderer/assets/main.css'
 import App from '@renderer/App'
 import BaseErrorBoundary from './components/base/base-error-boundary'
 import { Toaster } from './components/ui/sonner'
-import { openDevTools, quitApp } from './utils/ipc'
+import { openDevTools, quitApp, patchAppConfig } from './utils/ipc'
 import { AppConfigProvider } from './hooks/use-app-config'
 import { ControledMihomoConfigProvider } from './hooks/use-controled-mihomo-config'
 import { ProfileConfigProvider } from './hooks/use-profile-config'
@@ -15,6 +15,13 @@ import { RulesProvider } from './hooks/use-rules'
 import { GroupsProvider } from './hooks/use-groups'
 
 let F12Count = 0
+
+;(window as any).__dev = async (enable?: boolean) => {
+  const val = enable !== undefined ? enable : true
+  await patchAppConfig({ devMode: val })
+  console.log(`devMode ${val ? 'enabled' : 'disabled'} — restart app to apply`)
+  return val
+}
 
 init().then(() => {
   document.addEventListener('keydown', (e) => {

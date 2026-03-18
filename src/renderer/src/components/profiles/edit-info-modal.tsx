@@ -16,6 +16,7 @@ import { cn } from '@renderer/lib/utils'
 import SettingItem from '../base/base-setting-item'
 import { Spinner } from '@renderer/components/ui/spinner'
 import { getFilePath, readTextFile, restartCore } from '@renderer/utils/ipc'
+import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { useTranslation } from 'react-i18next'
 import {
   ClipboardPaste,
@@ -44,6 +45,7 @@ function isValidUrl(url: string): boolean {
 
 const EditInfoModal: React.FC<Props> = (props) => {
   const { t } = useTranslation()
+  const { appConfig } = useAppConfig()
   const { item, isCurrent, updateProfileItem, onClose } = props
   const [values, setValues] = useState({ ...item, autoUpdate: item.autoUpdate ?? true })
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -327,6 +329,18 @@ const EditInfoModal: React.FC<Props> = (props) => {
                         />
                       </SettingItem>
                     )}
+                    {appConfig?.devMode && (
+                      <SettingItem title="HWID Override">
+                        <Input
+                          className="h-8"
+                          placeholder="auto"
+                          value={values.customHwid ?? ''}
+                          onChange={(e) =>
+                            setValues({ ...values, customHwid: e.target.value.trim() || undefined })
+                          }
+                        />
+                      </SettingItem>
+                    )}
                   </>
                 )}
               </div>
@@ -410,6 +424,18 @@ const EditInfoModal: React.FC<Props> = (props) => {
                         setValues({ ...values, interval: parseInt(e.target.value) })
                       }
                       disabled={values.locked}
+                    />
+                  </SettingItem>
+                )}
+                {appConfig?.devMode && (
+                  <SettingItem title="HWID Override">
+                    <Input
+                      className="h-8"
+                      placeholder="auto"
+                      value={values.customHwid ?? ''}
+                      onChange={(e) =>
+                        setValues({ ...values, customHwid: e.target.value.trim() || undefined })
+                      }
                     />
                   </SettingItem>
                 )}

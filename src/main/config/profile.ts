@@ -168,7 +168,7 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
             }),
           headers: {
             'User-Agent': newItem.ua || (await getUserAgent()),
-            'x-hwid': getHWID(),
+            'x-hwid': item.customHwid || getHWID(),
             'x-device-os': getDeviceOS(),
             'x-ver-os': getOSVersion(),
             'x-device-model': getDeviceModel()
