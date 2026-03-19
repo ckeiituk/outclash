@@ -1,6 +1,6 @@
 [package]
 name = "outclash"
-version = "0.2.6"
+version = "0.3.0"
 description = "outclash"
 authors = ["zzzgydi", "wonfen", "MystiPanda", "coolcoala"]
 license = "GPL-3.0-only"
@@ -46,7 +46,8 @@ tokio = { version = "1.45.1", features = [
   "sync",
 ] }
 serde = { version = "1.0.219", features = ["derive"] }
-reqwest = { version = "0.12.20", features = ["json", "rustls-tls", "cookies", "brotli", "gzip", "zstd"] }
+reqwest = { version = "0.12.20", features = ["json", "rustls-tls", "cookies", "brotli", "gzip", "zstd", "stream"] }
+futures-util = "0.3"
 regex = "1.11.1"
 sysproxy = { git = "https://github.com/clash-verge-rev/sysproxy-rs" }
 image = "0.25.6"

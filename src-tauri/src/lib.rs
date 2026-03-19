@@ -392,6 +392,9 @@ pub fn run() {
             cmd::check_media_unlock,
             // light-weight model
             cmd::entry_lightweight_mode,
+            // bridge to electron
+            cmd::bridge_check,
+            cmd::bridge_download,
         ]);
 
     #[cfg(debug_assertions)]

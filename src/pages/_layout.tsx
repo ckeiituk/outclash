@@ -26,6 +26,7 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/sidebar";
 import { useZoomControls } from "@/hooks/useZoomControls";
 import { HwidErrorDialog } from "@/components/profile/hwid-error-dialog";
+import { BridgeDialog } from "@/components/setting/mods/bridge-dialog";
 import { UpdateDevPanel } from "@/dev/update-dev-panel";
 import { isUpdateDevToolsEnabled } from "@/services/update-check";
 import { isTauriEnv } from "@/utils/tauri-env";
@@ -527,6 +528,7 @@ const Layout = () => {
           </div>
         </main>
         <HwidErrorDialog />
+        <BridgeDialog />
       </>
     );
   };
