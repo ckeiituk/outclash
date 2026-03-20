@@ -98,13 +98,19 @@ pub async fn bridge_download(app: AppHandle, url: String) -> CmdResult<()> {
 
     let mut stream = resp.bytes_stream();
     use futures_util::StreamExt;
+    use std::time::Instant;
+
+    let mut last_emit = Instant::now();
 
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| e.to_string())?;
         file.write_all(&chunk).await.map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
 
-        let _ = app.emit("bridge-progress", BridgeProgress { downloaded, total });
+        if last_emit.elapsed().as_millis() >= 100 || downloaded == total {
+            let _ = app.emit("bridge-progress", BridgeProgress { downloaded, total });
+            last_emit = Instant::now();
+        }
     }
 
     file.flush().await.map_err(|e| e.to_string())?;
