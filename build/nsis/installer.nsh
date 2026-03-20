@@ -1,5 +1,14 @@
 !macro customInit
-  ; --- Migration from old Koala Clash (Tauri) app ---
+  ; --- Kill old processes before installing ---
+  nsExec::ExecToLog 'taskkill /f /im out-mihomo.exe'
+  nsExec::ExecToLog 'taskkill /f /im out-mihomo-alpha.exe'
+  nsExec::ExecToLog 'taskkill /f /im mihomo.exe'
+  nsExec::ExecToLog 'taskkill /f /im mihomo-alpha.exe'
+  nsExec::ExecToLog 'taskkill /f /im outclash-service.exe'
+  nsExec::ExecToLog 'taskkill /f /im OutClash.exe'
+  nsExec::ExecToLog 'taskkill /f /im outclash.exe'
+
+  ; --- Migration from old Tauri/Koala Clash app ---
 
   ; Force current user context to resolve $APPDATA correctly
   ; (perMachine installers may default to all-users context)
