@@ -38,7 +38,7 @@ export function BridgeDialog() {
   );
 
   const dismiss = () => {
-    dismiss();
+    setDismissed(true);
     sessionStorage.setItem("bridge-dismissed", "1");
   };
 
