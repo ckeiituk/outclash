@@ -143,10 +143,8 @@ pub async fn bridge_download(app: AppHandle, url: String) -> CmdResult<()> {
     // Launch the installer
     launch_installer(&file_path)?;
 
-    // Exit the app
-    app.exit(0);
-
-    Ok(())
+    // Force-exit immediately to avoid IPC channel drop causing frontend to loop
+    std::process::exit(0);
 }
 
 /// Cancel-safe: allows frontend to abort by simply not awaiting

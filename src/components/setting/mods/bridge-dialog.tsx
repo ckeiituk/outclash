@@ -58,8 +58,12 @@ export function BridgeDialog() {
     setDownloading(true);
     try {
       await invoke("bridge_download", { url: release.download_url });
-    } catch (e) {
-      setDownloading(false);
+    } catch {
+      // App is exiting after launching installer — IPC channel drops.
+      // Only re-enable the dialog if we never started downloading (real error).
+      if (progress.downloaded === 0) {
+        setDownloading(false);
+      }
     }
   };
 
