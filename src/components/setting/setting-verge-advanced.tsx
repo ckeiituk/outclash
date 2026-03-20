@@ -89,6 +89,8 @@ const SettingVergeAdvanced = ({ onError }: Props) => {
   const liteModeRef = useRef<DialogRef>(null);
 
   const onCheckUpdate = async () => {
+    // Reset bridge dismiss so the migration dialog can re-appear
+    sessionStorage.removeItem("bridge-dismissed");
     try {
       const info = await refresh();
       if (!info) {
