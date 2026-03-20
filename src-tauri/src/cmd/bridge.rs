@@ -9,14 +9,14 @@ use tokio::io::AsyncWriteExt;
 const ELECTRON_REPO: &str = "ckeiituk/outclash";
 
 #[derive(Serialize, Clone)]
-struct BridgeRelease {
-    version: String,
-    download_url: String,
-    body: String,
+pub struct BridgeRelease {
+    pub version: String,
+    pub download_url: String,
+    pub body: String,
 }
 
 #[derive(Serialize, Clone)]
-struct BridgeProgress {
+pub struct BridgeProgress {
     downloaded: u64,
     total: u64,
 }
