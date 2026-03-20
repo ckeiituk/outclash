@@ -33,15 +33,23 @@ export function BridgeDialog() {
     total: 0,
     phase: "downloading",
   });
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(
+    () => sessionStorage.getItem("bridge-dismissed") === "1",
+  );
+
+  const dismiss = () => {
+    dismiss();
+    sessionStorage.setItem("bridge-dismissed", "1");
+  };
 
   useEffect(() => {
+    if (dismissed) return;
     invoke<BridgeRelease | null>("bridge_check")
       .then((r) => {
         if (r) setRelease(r);
       })
       .catch(() => {});
-  }, []);
+  }, [dismissed]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -69,7 +77,7 @@ export function BridgeDialog() {
 
   const handleCancel = () => {
     setDownloading(false);
-    setDismissed(true);
+    dismiss();
   };
 
   if (!release || dismissed) return null;
@@ -83,7 +91,7 @@ export function BridgeDialog() {
   return (
     <Dialog
       open={true}
-      onOpenChange={(open) => !open && !downloading && setDismissed(true)}
+      onOpenChange={(open) => !open && !downloading && dismiss()}
     >
       <DialogContent className="sm:max-w-md" showCloseButton={!downloading}>
         <DialogHeader>
@@ -127,7 +135,7 @@ export function BridgeDialog() {
             </Button>
           ) : !downloading ? (
             <>
-              <Button variant="ghost" onClick={() => setDismissed(true)}>
+              <Button variant="ghost" onClick={() => dismiss()}>
                 {t("Later")}
               </Button>
               <Button onClick={handleUpdate}>{t("Update")}</Button>
