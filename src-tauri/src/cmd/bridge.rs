@@ -177,8 +177,11 @@ fn get_installer_asset_name() -> String {
 fn launch_installer(path: &PathBuf) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        // Use "open" verb via cmd /c start — triggers ShellExecute which
+        // shows SmartScreen prompt for unsigned exe instead of silently failing
         use std::process::Command;
-        Command::new(path)
+        Command::new("cmd")
+            .args(["/c", "start", "", &path.to_string_lossy()])
             .spawn()
             .map_err(|e| format!("Failed to launch installer: {}", e))?;
     }
