@@ -395,6 +395,7 @@ pub fn run() {
             // bridge to electron
             cmd::bridge_check,
             cmd::bridge_download,
+            cmd::bridge_cancel,
         ]);
 
     #[cfg(debug_assertions)]

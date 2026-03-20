@@ -3,6 +3,7 @@ use reqwest::Client;
 use serde::Serialize;
 use std::env;
 use std::path::PathBuf;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::AsyncWriteExt;
 
@@ -17,8 +18,9 @@ pub struct BridgeRelease {
 
 #[derive(Serialize, Clone)]
 pub struct BridgeProgress {
-    downloaded: u64,
-    total: u64,
+    pub downloaded: u64,
+    pub total: u64,
+    pub phase: String,
 }
 
 /// Check if an Electron release is available
@@ -26,10 +28,15 @@ pub struct BridgeProgress {
 pub async fn bridge_check() -> CmdResult<Option<BridgeRelease>> {
     let client = Client::builder()
         .user_agent("outclash-bridge")
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let url = format!("https://api.github.com/repos/{}/releases/latest", ELECTRON_REPO);
+    let url = format!(
+        "https://api.github.com/repos/{}/releases/latest",
+        ELECTRON_REPO
+    );
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
 
     if !resp.status().is_success() {
@@ -52,18 +59,16 @@ pub async fn bridge_check() -> CmdResult<Option<BridgeRelease>> {
 
     // Find the installer asset for current platform/arch
     let asset_name = get_installer_asset_name();
-    let download_url = json["assets"]
-        .as_array()
-        .and_then(|assets| {
-            assets.iter().find_map(|a| {
-                let name = a["name"].as_str().unwrap_or("");
-                if name == asset_name {
-                    a["browser_download_url"].as_str().map(|s| s.to_string())
-                } else {
-                    None
-                }
-            })
-        });
+    let download_url = json["assets"].as_array().and_then(|assets| {
+        assets.iter().find_map(|a| {
+            let name = a["name"].as_str().unwrap_or("");
+            if name == asset_name {
+                a["browser_download_url"].as_str().map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+    });
 
     match download_url {
         Some(url) => Ok(Some(BridgeRelease {
@@ -80,6 +85,8 @@ pub async fn bridge_check() -> CmdResult<Option<BridgeRelease>> {
 pub async fn bridge_download(app: AppHandle, url: String) -> CmdResult<()> {
     let client = Client::builder()
         .user_agent("outclash-bridge")
+        .connect_timeout(Duration::from_secs(30))
+        .read_timeout(Duration::from_secs(60))
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -108,10 +115,27 @@ pub async fn bridge_download(app: AppHandle, url: String) -> CmdResult<()> {
         downloaded += chunk.len() as u64;
 
         if last_emit.elapsed().as_millis() >= 100 || downloaded == total {
-            let _ = app.emit("bridge-progress", BridgeProgress { downloaded, total });
+            let _ = app.emit(
+                "bridge-progress",
+                BridgeProgress {
+                    downloaded,
+                    total,
+                    phase: "downloading".to_string(),
+                },
+            );
             last_emit = Instant::now();
         }
     }
+
+    // Notify UI that we're in the install phase (flush + Defender scan can take seconds)
+    let _ = app.emit(
+        "bridge-progress",
+        BridgeProgress {
+            downloaded: total,
+            total,
+            phase: "installing".to_string(),
+        },
+    );
 
     file.flush().await.map_err(|e| e.to_string())?;
     drop(file);
@@ -122,6 +146,15 @@ pub async fn bridge_download(app: AppHandle, url: String) -> CmdResult<()> {
     // Exit the app
     app.exit(0);
 
+    Ok(())
+}
+
+/// Cancel-safe: allows frontend to abort by simply not awaiting
+#[tauri::command]
+pub async fn bridge_cancel() -> CmdResult<()> {
+    // Frontend can call this to signal intent — the actual cancellation
+    // happens by the frontend ignoring the bridge_download result.
+    // This is a no-op placeholder for future cancellation token support.
     Ok(())
 }
 
@@ -164,7 +197,6 @@ fn launch_installer(path: &PathBuf) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         use std::process::Command;
-        // Open file manager or package installer
         Command::new("xdg-open")
             .arg(path)
             .spawn()

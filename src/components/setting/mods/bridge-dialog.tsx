@@ -21,6 +21,7 @@ interface BridgeRelease {
 interface BridgeProgress {
   downloaded: number;
   total: number;
+  phase: string;
 }
 
 export function BridgeDialog() {
@@ -30,6 +31,7 @@ export function BridgeDialog() {
   const [progress, setProgress] = useState<BridgeProgress>({
     downloaded: 0,
     total: 0,
+    phase: "downloading",
   });
   const [dismissed, setDismissed] = useState(false);
 
@@ -61,30 +63,49 @@ export function BridgeDialog() {
     }
   };
 
+  const handleCancel = () => {
+    setDownloading(false);
+    setDismissed(true);
+  };
+
   if (!release || dismissed) return null;
 
+  const isInstalling = progress.phase === "installing";
   const pct =
     progress.total > 0 ? (progress.downloaded / progress.total) * 100 : 0;
   const downloadedMB = (progress.downloaded / 1024 / 1024).toFixed(1);
   const totalMB = (progress.total / 1024 / 1024).toFixed(1);
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && !downloading && setDismissed(true)}>
+    <Dialog
+      open={true}
+      onOpenChange={(open) => !open && !downloading && setDismissed(true)}
+    >
       <DialogContent className="sm:max-w-md" showCloseButton={!downloading}>
         <DialogHeader>
           <DialogTitle>
-            {downloading
-              ? t("Downloading new version...")
-              : `OutClash v${release.version} available`}
+            {isInstalling
+              ? t("Launching installer...")
+              : downloading
+                ? t("Downloading new version...")
+                : `OutClash v${release.version} available`}
           </DialogTitle>
         </DialogHeader>
 
         {downloading ? (
           <div className="space-y-2 py-4">
-            <Progress value={pct} />
-            <p className="text-xs text-muted-foreground text-center">
-              {downloadedMB} / {totalMB} MB ({Math.round(pct)}%)
-            </p>
+            {isInstalling ? (
+              <p className="text-xs text-muted-foreground text-center">
+                {t("Please wait, the installer will open shortly...")}
+              </p>
+            ) : (
+              <>
+                <Progress value={pct} />
+                <p className="text-xs text-muted-foreground text-center">
+                  {downloadedMB} / {totalMB} MB ({Math.round(pct)}%)
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="py-4 text-sm text-muted-foreground">
@@ -95,14 +116,20 @@ export function BridgeDialog() {
           </div>
         )}
 
-        {!downloading && (
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDismissed(true)}>
-              {t("Later")}
+        <DialogFooter>
+          {downloading && !isInstalling ? (
+            <Button variant="ghost" onClick={handleCancel}>
+              {t("Cancel")}
             </Button>
-            <Button onClick={handleUpdate}>{t("Update")}</Button>
-          </DialogFooter>
-        )}
+          ) : !downloading ? (
+            <>
+              <Button variant="ghost" onClick={() => setDismissed(true)}>
+                {t("Later")}
+              </Button>
+              <Button onClick={handleUpdate}>{t("Update")}</Button>
+            </>
+          ) : null}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
