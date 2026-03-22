@@ -143,10 +143,7 @@ pub async fn bridge_download(app: AppHandle, url: String) -> CmdResult<()> {
     // Launch the installer
     launch_installer(&file_path)?;
 
-    // Give the detached process a moment to start before we exit
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-    // Force-exit to avoid IPC channel drop causing frontend to loop
+    // Force-exit immediately to avoid IPC channel drop causing frontend to loop
     std::process::exit(0);
 }
 
@@ -180,17 +177,11 @@ fn get_installer_asset_name() -> String {
 fn launch_installer(path: &PathBuf) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        // Launch installer fully detached so it survives process::exit(0).
-        // CREATE_NEW_PROCESS_GROUP (0x200) + CREATE_NO_WINDOW (0x08000000)
-        // ensures the installer is not tied to the parent process tree.
-        use std::os::windows::process::CommandExt;
+        // Use "open" verb via cmd /c start — triggers ShellExecute which
+        // shows SmartScreen prompt for unsigned exe instead of silently failing
         use std::process::Command;
-        const DETACH_FLAGS: u32 = 0x00000200 | 0x08000000; // CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
-
-        // Use cmd /c start to trigger ShellExecute (SmartScreen support)
         Command::new("cmd")
             .args(["/c", "start", "", &path.to_string_lossy()])
-            .creation_flags(DETACH_FLAGS)
             .spawn()
             .map_err(|e| format!("Failed to launch installer: {}", e))?;
     }
