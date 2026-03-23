@@ -775,38 +775,40 @@ const Connections: React.FC = () => {
           >
             {isPaused ? <Play className="text-lg" /> : <Pause className="text-lg" />}
           </Button>
-          {!isProcessListView && (
-            <div className="relative flex items-center">
-              <Button
-                className="app-nodrag shrink-0"
-                title={
-                  tab === 'active'
+          <div className="relative flex items-center">
+            <Button
+              className="app-nodrag shrink-0"
+              title={
+                isProcessListView
+                  ? t('pages.connections.closeAll')
+                  : tab === 'active'
                     ? t('pages.connections.closeAll')
                     : t('pages.connections.clearClosed')
+              }
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => {
+                if (isProcessListView) {
+                  mihomoCloseAllConnections()
+                } else if (filter === '') {
+                  closeAllConnections()
+                } else {
+                  filteredConnections.forEach((conn) => {
+                    closeConnection(conn.id)
+                  })
                 }
-                size="icon-sm"
-                variant="ghost"
-                onClick={() => {
-                  if (filter === '') {
-                    closeAllConnections()
-                  } else {
-                    filteredConnections.forEach((conn) => {
-                      closeConnection(conn.id)
-                    })
-                  }
-                }}
-              >
-                {tab === 'active' ? (
-                  <X className="size-4" />
-                ) : (
-                  <Trash2 className="relative -top-px size-4" />
-                )}
-              </Button>
-              <Badge className="absolute -top-0.5 -right-0.5 min-w-3 h-3 justify-center px-0.5 text-[8px] leading-none">
-                {filteredConnections.length}
-              </Badge>
-            </div>
-          )}
+              }}
+            >
+              {isProcessListView || tab === 'active' ? (
+                <X className="size-4" />
+              ) : (
+                <Trash2 className="relative -top-px size-4" />
+              )}
+            </Button>
+            <Badge className="absolute -top-0.5 -right-0.5 min-w-3 h-3 justify-center px-0.5 text-[8px] leading-none">
+              {isProcessListView ? activeConnections.length : filteredConnections.length}
+            </Badge>
+          </div>
           <Button
             size="icon-sm"
             className="app-nodrag shrink-0"
