@@ -146,6 +146,7 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
     type: item.type,
     url: item.url,
     ua: item.ua,
+    customHwid: item.customHwid,
     verify: item.verify ?? true,
     autoUpdate: item.autoUpdate ?? true,
     interval: item.interval || 0,
