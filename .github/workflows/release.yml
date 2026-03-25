@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check tag and package.json version
         run: |
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Fetch UPDATE logs
         id: fetch_update_logs
@@ -134,7 +134,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Skip macOS build (signing secrets missing)
         if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
@@ -142,7 +142,7 @@ jobs:
 
       - name: Install Node
         if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
 
@@ -241,10 +241,10 @@ jobs:
     needs: [release]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
 
@@ -272,7 +272,7 @@ jobs:
       TELEGRAM_TO_GROUP: ${{ secrets.TELEGRAM_TO_GROUP }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Fetch UPDATE logs
         id: fetch_update_logs
