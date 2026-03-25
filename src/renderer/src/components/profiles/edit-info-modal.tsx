@@ -15,7 +15,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/components/ui
 import { cn } from '@renderer/lib/utils'
 import SettingItem from '../base/base-setting-item'
 import { Spinner } from '@renderer/components/ui/spinner'
-import { getFilePath, readTextFile, restartCore } from '@renderer/utils/ipc'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@renderer/components/ui/select'
+import { getFilePath, readTextFile, restartCore, createProfileFromShareLink } from '@renderer/utils/ipc'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { useTranslation } from 'react-i18next'
 import {
@@ -34,13 +41,20 @@ interface Props {
   onClose: () => void
 }
 
+const SHARE_LINK_REGEX = /^(vmess|vless|ss|trojan):\/\//
+
 function isValidUrl(url: string): boolean {
+  if (SHARE_LINK_REGEX.test(url)) return true
   try {
     const u = new URL(url)
     return u.protocol === 'http:' || u.protocol === 'https:'
   } catch {
     return false
   }
+}
+
+function isShareLink(url: string): boolean {
+  return SHARE_LINK_REGEX.test(url)
 }
 
 const EditInfoModal: React.FC<Props> = (props) => {
@@ -52,21 +66,29 @@ const EditInfoModal: React.FC<Props> = (props) => {
   const [urlTouched, setUrlTouched] = useState(false)
   const [localFileName, setLocalFileName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState('default')
   const closeRef = useRef<HTMLButtonElement>(null)
 
   const isNew = !item.id
   const isLocal = values.type === 'local'
   const urlInvalid = !isLocal && urlTouched && !!values.url && !isValidUrl(values.url)
 
+  const urlValue = values.url || ''
+  const isShareLinkUrl = isShareLink(urlValue)
   const canImport = isNew
     ? isLocal
       ? !!values.file
-      : isValidUrl(values.url || '')
+      : isValidUrl(urlValue)
     : true
 
   const onSave = async (): Promise<void> => {
     setSaving(true)
     try {
+      if (isNew && isShareLinkUrl) {
+        await createProfileFromShareLink(urlValue, selectedTemplate)
+        closeRef.current?.click()
+        return
+      }
       const itemToSave = { ...values }
       await updateProfileItem(itemToSave)
       if (item.id && isCurrent) {
@@ -197,7 +219,7 @@ const EditInfoModal: React.FC<Props> = (props) => {
                       'h-9 pr-9',
                       urlInvalid && 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/50'
                     )}
-                    placeholder={t('profile.urlPlaceholder')}
+                    placeholder={t('profile.urlPlaceholderWithShareLink')}
                     value={values.url || ''}
                     onChange={(e) => {
                       setValues({ ...values, url: e.target.value })
@@ -227,23 +249,43 @@ const EditInfoModal: React.FC<Props> = (props) => {
               </div>
             )}
 
-            {/* Advanced settings toggle */}
-            <button
-              type="button"
-              className="flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              <ChevronDown
-                className={cn(
-                  'size-3.5 transition-transform duration-200',
-                  showAdvanced && 'rotate-180'
-                )}
-              />
-              {t('profile.advancedSettings')}
-            </button>
+            {/* Template selector for share links */}
+            {isShareLinkUrl && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {t('profile.template')}
+                </span>
+                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                  <SelectTrigger className="h-8 flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{t('profile.templateDefault')}</SelectItem>
+                    <SelectItem value="without_ru">{t('profile.templateWithoutRu')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            {showAdvanced && (
-              <div className="rounded-xl border border-stroke/50 bg-accent/20 p-3 flex flex-col gap-2">
+            {/* Advanced settings toggle (hidden for share links) */}
+            {!isShareLinkUrl && (
+              <>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 self-start text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                >
+                  <ChevronDown
+                    className={cn(
+                      'size-3.5 transition-transform duration-200',
+                      showAdvanced && 'rotate-180'
+                    )}
+                  />
+                  {t('profile.advancedSettings')}
+                </button>
+
+                {showAdvanced && (
+                  <div className="rounded-xl border border-stroke/50 bg-accent/20 p-3 flex flex-col gap-2">
                 <SettingItem title={t('profile.profileType')}>
                   <div className="flex gap-1">
                     <Button
@@ -343,7 +385,9 @@ const EditInfoModal: React.FC<Props> = (props) => {
                     )}
                   </>
                 )}
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : (

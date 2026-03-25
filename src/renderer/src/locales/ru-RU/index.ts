@@ -739,6 +739,10 @@ export default {
     invalidUrl: 'Некорректный URL',
     pasteFromClipboard: 'Вставить из буфера обмена',
     urlPlaceholder: 'Введите ссылку на подписку...',
+    urlPlaceholderWithShareLink: 'URL или прокси-ссылка (ss://, vmess://, vless://, trojan://)',
+    template: 'Шаблон',
+    templateDefault: 'По умолчанию (RU правила)',
+    templateWithoutRu: 'Международный',
     editSubscription: 'Редактировать подписку',
     editSubscriptionNoticePrefix:
       'Примечание: изменения здесь будут сброшены после обновления подписки. Для кастомизации используйте ',

@@ -739,6 +739,10 @@ export default {
     invalidUrl: 'Invalid URL',
     pasteFromClipboard: 'Paste from clipboard',
     urlPlaceholder: 'Enter subscription URL...',
+    urlPlaceholderWithShareLink: 'URL or proxy link (ss://, vmess://, vless://, trojan://)',
+    template: 'Template',
+    templateDefault: 'Default (RU rules)',
+    templateWithoutRu: 'International',
     editSubscription: 'Edit subscription',
     editSubscriptionNoticePrefix:
       'Note: edits here will be overwritten after subscription refresh. For custom changes, use ',

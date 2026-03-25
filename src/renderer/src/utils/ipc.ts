@@ -155,6 +155,15 @@ export async function addProfileItem(item: Partial<ProfileItem>): Promise<void> 
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('addProfileItem', item))
 }
 
+export async function createProfileFromShareLink(
+  link: string,
+  templateName: string = 'default'
+): Promise<void> {
+  return ipcErrorWrapper(
+    await window.electron.ipcRenderer.invoke('createProfileFromShareLink', link, templateName)
+  )
+}
+
 export async function removeProfileItem(id: string): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('removeProfileItem', id))
 }
