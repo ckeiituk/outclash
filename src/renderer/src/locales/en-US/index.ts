@@ -762,7 +762,15 @@ export default {
     hourShort: 'h',
     dayShort: 'd',
     minuteShort: 'm',
-    localProfileLabel: 'Local profile'
+    localProfileLabel: 'Local profile',
+    editProxies: 'Edit Proxies',
+    pasteProxyLinks: 'Paste proxy links here (one per line, or base64)',
+    addToProfile: 'Add to Profile',
+    currentProxies: 'Current Proxies',
+    noProxies: 'No proxies in this profile',
+    proxiesAdded: '{{count}} proxies added',
+    proxiesSaved: 'Proxies saved',
+    parseErrors: '{{count}} links failed to parse'
   },
 
   connection: {

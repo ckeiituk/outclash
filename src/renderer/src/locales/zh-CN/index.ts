@@ -820,7 +820,15 @@ export default {
     hourShort: '时',
     dayShort: '天',
     minuteShort: '分',
-    localProfileLabel: '本地配置'
+    localProfileLabel: '本地配置',
+    editProxies: '编辑代理',
+    pasteProxyLinks: '粘贴代理链接（每行一个，或base64编码）',
+    addToProfile: '添加到配置',
+    currentProxies: '当前代理',
+    noProxies: '此配置中没有代理',
+    proxiesAdded: '已添加 {{count}} 个代理',
+    proxiesSaved: '代理已保存',
+    parseErrors: '{{count}} 个链接解析失败'
   },
 
   connection: {

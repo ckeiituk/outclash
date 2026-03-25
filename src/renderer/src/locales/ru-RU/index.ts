@@ -762,7 +762,15 @@ export default {
     hourShort: 'ч',
     dayShort: 'д',
     minuteShort: 'м',
-    localProfileLabel: 'Локальный профиль'
+    localProfileLabel: 'Локальный профиль',
+    editProxies: 'Редактировать прокси',
+    pasteProxyLinks: 'Вставьте прокси-ссылки (по одной на строку, или base64)',
+    addToProfile: 'Добавить в профиль',
+    currentProxies: 'Текущие прокси',
+    noProxies: 'Нет прокси в этом профиле',
+    proxiesAdded: '{{count}} прокси добавлено',
+    proxiesSaved: 'Прокси сохранены',
+    parseErrors: '{{count}} ссылок не удалось распарсить'
   },
 
   connection: {

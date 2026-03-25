@@ -14,6 +14,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import EditFileModal from './edit-file-modal'
 import EditRulesModal from './edit-rules-modal'
 import EditInfoModal from './edit-info-modal'
+import EditProxiesModal from './edit-proxies-modal'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { openFile } from '@renderer/utils/ipc'
@@ -36,6 +37,7 @@ import {
   FolderOpen,
   HeadsetIcon,
   InfinityIcon,
+  ListFilter,
   ListTree,
   Pencil,
   RefreshCcw,
@@ -79,6 +81,7 @@ const ProfileItem: React.FC<Props> = (props) => {
   const [openInfoEditor, setOpenInfoEditor] = useState(false)
   const [openFileEditor, setOpenFileEditor] = useState(false)
   const [openRulesEditor, setOpenRulesEditor] = useState(false)
+  const [openProxiesEditor, setOpenProxiesEditor] = useState(false)
   const {
     attributes,
     listeners,
@@ -159,6 +162,13 @@ const ProfileItem: React.FC<Props> = (props) => {
         variant: 'default'
       },
       {
+        key: 'edit-proxies',
+        label: t('profile.editProxies'),
+        icon: <ListFilter />,
+        showDivider: false,
+        variant: 'default'
+      },
+      {
         key: 'edit-rules',
         label: t('profile.editRule'),
         icon: <ListTree />,
@@ -200,6 +210,10 @@ const ProfileItem: React.FC<Props> = (props) => {
       }
       case 'edit-file': {
         setOpenFileEditor(true)
+        break
+      }
+      case 'edit-proxies': {
+        setOpenProxiesEditor(true)
         break
       }
       case 'edit-rules': {
@@ -249,6 +263,13 @@ const ProfileItem: React.FC<Props> = (props) => {
       }}
     >
       {openFileEditor && <EditFileModal id={info.id} onClose={() => setOpenFileEditor(false)} />}
+      {openProxiesEditor && (
+        <EditProxiesModal
+          id={info.id}
+          isCurrent={isCurrent}
+          onClose={() => setOpenProxiesEditor(false)}
+        />
+      )}
       {openRulesEditor && <EditRulesModal id={info.id} onClose={() => setOpenRulesEditor(false)} />}
       {openInfoEditor && (
         <EditInfoModal
