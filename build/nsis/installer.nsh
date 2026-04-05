@@ -1,9 +1,12 @@
 !macro customInit
   ; --- Migration from old Tauri/Koala Clash app ---
+  ; Skip entirely if migration was already completed (i.e. this is an update)
 
   ; Force current user context to resolve $APPDATA correctly
   ; (perMachine installers may default to all-users context)
   SetShellVarContext current
+
+  IfFileExists "$APPDATA\OutClash\.migration-done" migration_skip 0
 
   ; Check if old profiles.yaml exists and back it up
   ; Priority: old Tauri OutClash > old Tauri Koala Clash
@@ -61,6 +64,7 @@
     ExecWait '"$0" /S'
 
   uninstall_done:
+  migration_skip:
 
   ; Restore context for the rest of the installer
   SetShellVarContext all
