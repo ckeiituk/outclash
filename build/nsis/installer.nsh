@@ -1,13 +1,4 @@
 !macro customInit
-  ; --- Kill old processes before installing ---
-  nsExec::ExecToLog 'taskkill /f /im out-mihomo.exe'
-  nsExec::ExecToLog 'taskkill /f /im out-mihomo-alpha.exe'
-  nsExec::ExecToLog 'taskkill /f /im mihomo.exe'
-  nsExec::ExecToLog 'taskkill /f /im mihomo-alpha.exe'
-  nsExec::ExecToLog 'taskkill /f /im outclash-service.exe'
-  nsExec::ExecToLog 'taskkill /f /im OutClash.exe'
-  nsExec::ExecToLog 'taskkill /f /im outclash.exe'
-
   ; --- Migration from old Tauri/Koala Clash app ---
 
   ; Force current user context to resolve $APPDATA correctly
@@ -33,24 +24,40 @@
     CopyFiles /SILENT "$LOCALAPPDATA\io.github.koala-clash\profiles.yaml" "$TEMP\outclash-migration-profiles.yaml"
   backup_done:
 
-  ; Try to find and run the old uninstaller
-  ; Check Program Files locations first
-  IfFileExists "$PROGRAMFILES\Koala Clash\uninstall.exe" 0 check_programfiles64
+  ; Try to find and run old uninstallers
+  ; --- Old Tauri OutClash ---
+  IfFileExists "$PROGRAMFILES\OutClash\uninstall.exe" 0 check_outclash_pf64
+    ExecWait '"$PROGRAMFILES\OutClash\uninstall.exe" /S _?=$PROGRAMFILES\OutClash'
+    Goto check_koala_uninstall
+  check_outclash_pf64:
+  IfFileExists "$PROGRAMFILES64\OutClash\uninstall.exe" 0 check_outclash_registry
+    ExecWait '"$PROGRAMFILES64\OutClash\uninstall.exe" /S _?=$PROGRAMFILES64\OutClash'
+    Goto check_koala_uninstall
+  check_outclash_registry:
+    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OutClash" "UninstallString"
+    StrCmp $0 "" check_outclash_registry_user run_outclash_uninstaller
+  check_outclash_registry_user:
+    ReadRegStr $0 HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OutClash" "UninstallString"
+    StrCmp $0 "" check_koala_uninstall run_outclash_uninstaller
+  run_outclash_uninstaller:
+    ExecWait '"$0" /S'
+
+  ; --- Old Koala Clash ---
+  check_koala_uninstall:
+  IfFileExists "$PROGRAMFILES\Koala Clash\uninstall.exe" 0 check_koala_pf64
     ExecWait '"$PROGRAMFILES\Koala Clash\uninstall.exe" /S _?=$PROGRAMFILES\Koala Clash'
     Goto uninstall_done
-  check_programfiles64:
-  IfFileExists "$PROGRAMFILES64\Koala Clash\uninstall.exe" 0 check_registry
+  check_koala_pf64:
+  IfFileExists "$PROGRAMFILES64\Koala Clash\uninstall.exe" 0 check_koala_registry
     ExecWait '"$PROGRAMFILES64\Koala Clash\uninstall.exe" /S _?=$PROGRAMFILES64\Koala Clash'
     Goto uninstall_done
-
-  ; Fallback: check registry for uninstall string
-  check_registry:
+  check_koala_registry:
     ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Koala Clash" "UninstallString"
-    StrCmp $0 "" check_registry_user run_registry_uninstaller
-  check_registry_user:
+    StrCmp $0 "" check_koala_registry_user run_koala_uninstaller
+  check_koala_registry_user:
     ReadRegStr $0 HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Koala Clash" "UninstallString"
-    StrCmp $0 "" uninstall_done run_registry_uninstaller
-  run_registry_uninstaller:
+    StrCmp $0 "" uninstall_done run_koala_uninstaller
+  run_koala_uninstaller:
     ExecWait '"$0" /S'
 
   uninstall_done:
