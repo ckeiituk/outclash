@@ -27,26 +27,11 @@
     CopyFiles /SILENT "$LOCALAPPDATA\io.github.koala-clash\profiles.yaml" "$TEMP\outclash-migration-profiles.yaml"
   backup_done:
 
-  ; Try to find and run old uninstallers
-  ; --- Old Tauri OutClash ---
-  IfFileExists "$PROGRAMFILES\OutClash\uninstall.exe" 0 check_outclash_pf64
-    ExecWait '"$PROGRAMFILES\OutClash\uninstall.exe" /S _?=$PROGRAMFILES\OutClash'
-    Goto check_koala_uninstall
-  check_outclash_pf64:
-  IfFileExists "$PROGRAMFILES64\OutClash\uninstall.exe" 0 check_outclash_registry
-    ExecWait '"$PROGRAMFILES64\OutClash\uninstall.exe" /S _?=$PROGRAMFILES64\OutClash'
-    Goto check_koala_uninstall
-  check_outclash_registry:
-    ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OutClash" "UninstallString"
-    StrCmp $0 "" check_outclash_registry_user run_outclash_uninstaller
-  check_outclash_registry_user:
-    ReadRegStr $0 HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OutClash" "UninstallString"
-    StrCmp $0 "" check_koala_uninstall run_outclash_uninstaller
-  run_outclash_uninstaller:
-    ExecWait '"$0" /S'
+  ; Old Tauri OutClash has the same productName — electron-builder's
+  ; built-in uninstallOldVersion handles it automatically after user
+  ; clicks Install (CHECK_APP_RUNNING + registry lookup).
 
-  ; --- Old Koala Clash ---
-  check_koala_uninstall:
+  ; --- Old Koala Clash (different product name, needs manual lookup) ---
   IfFileExists "$PROGRAMFILES\Koala Clash\uninstall.exe" 0 check_koala_pf64
     ExecWait '"$PROGRAMFILES\Koala Clash\uninstall.exe" /S _?=$PROGRAMFILES\Koala Clash'
     Goto uninstall_done
@@ -78,5 +63,19 @@
     CopyFiles /SILENT "$TEMP\outclash-migration-profiles.yaml" "$APPDATA\OutClash\.migration-profiles.yaml"
     Delete "$TEMP\outclash-migration-profiles.yaml"
   no_migration_file:
+
+  ; --- Fallback: clean up old Tauri OutClash if electron-builder missed it ---
+  ; electron-builder's uninstallOldVersion already ran before this point.
+  ; If it found and removed the old Tauri OutClash, the registry entry is gone.
+  ; If not, we clean it up here (after user already confirmed installation).
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OutClash" "UninstallString"
+  StrCmp $0 "" check_outclash_hkcu_post run_outclash_post
+  check_outclash_hkcu_post:
+  ReadRegStr $0 HKCU "SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OutClash" "UninstallString"
+  StrCmp $0 "" outclash_cleanup_done run_outclash_post
+  run_outclash_post:
+  ExecWait '"$0" /S'
+  outclash_cleanup_done:
+
   SetShellVarContext all
 !macroend
