@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { invoke } from "@tauri-apps/api/core";
 import { version } from "@root/package.json";
 
 // Сервисы и хуки
@@ -77,8 +78,6 @@ const SettingRow = ({
 
 const SettingVergeAdvanced = ({ onError }: Props) => {
   const { t } = useTranslation();
-  const { refresh } = useUpdateCheck();
-
   const configRef = useRef<DialogRef>(null);
   const hotkeyRef = useRef<DialogRef>(null);
   const miscRef = useRef<DialogRef>(null);
@@ -89,18 +88,16 @@ const SettingVergeAdvanced = ({ onError }: Props) => {
   const liteModeRef = useRef<DialogRef>(null);
 
   const onCheckUpdate = async () => {
-    // Reset bridge dismiss so the migration dialog can re-appear
-    sessionStorage.removeItem("bridge-dismissed");
+    // Show bridge dialog if Electron release is available
+    // No more Tauri updates — bridge is the only upgrade path
     try {
-      const info = await refresh();
-      if (!info) {
-        showNotice("success", t("Currently on the Latest Version"));
-      } else {
-        updateRef.current?.open();
+      const bridge = await invoke<any | null>("bridge_check");
+      if (bridge) {
+        sessionStorage.removeItem("bridge-dismissed");
+        return;
       }
-    } catch (err: any) {
-      showNotice("error", err.message || err.toString());
-    }
+    } catch {}
+    showNotice("success", t("Currently on the Latest Version"));
   };
 
   const onExportDiagnosticInfo = useCallback(async () => {
