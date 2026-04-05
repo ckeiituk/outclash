@@ -25,6 +25,22 @@ let F12Count = 0
   return val
 }
 
+;(window as any).__help = () => {
+  const commands = [
+    ['__help()', 'Show this help'],
+    ['__dev()', 'Toggle dev mode (enables hidden settings)'],
+    ['__dev(false)', 'Disable dev mode'],
+    ['__updateBanner()', 'Toggle update banner preview'],
+    ['__updateBanner("1.2.0")', 'Show banner with specific version']
+  ]
+  const maxCmd = Math.max(...commands.map(([c]) => c.length))
+  console.log('\n%c OutClash Dev Commands \n', 'background:#3b82f6;color:white;font-weight:bold;padding:4px 8px;border-radius:4px')
+  commands.forEach(([cmd, desc]) => {
+    console.log(`  %c${cmd.padEnd(maxCmd + 2)}%c${desc}`, 'color:#3b82f6;font-weight:bold', 'color:inherit')
+  })
+  console.log('')
+}
+
 init().then(() => {
   document.addEventListener('keydown', (e) => {
     if (platform !== 'darwin' && e.ctrlKey && e.key === 'q') {

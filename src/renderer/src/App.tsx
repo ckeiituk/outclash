@@ -19,6 +19,7 @@ import ConfirmModal from '@renderer/components/base/base-confirm'
 import { SidebarProvider } from '@renderer/components/ui/sidebar'
 import AppSidebar from '@renderer/components/app-sidebar'
 import HwidLimitAlert from '@renderer/components/profiles/hwid-limit-alert'
+import UpdateBanner from '@renderer/components/updater/update-banner'
 import WindowControls from '@renderer/components/window-controls'
 import mapDark from '@renderer/assets/map_darktheme.svg'
 import mapLight from '@renderer/assets/map_lighttheme.svg'
@@ -43,9 +44,18 @@ const App: React.FC = () => {
     autoCheckUpdate ? ['checkUpdate'] : undefined,
     autoCheckUpdate ? checkUpdate : (): undefined => {},
     {
-      refreshInterval: 1000 * 60 * 10
+      refreshInterval: 1000 * 60 * 10,
+      revalidateOnFocus: false
     }
   )
+
+  const [debugLatest, setDebugLatest] = useState<{ version: string; changelog: string } | null>(null)
+  useEffect(() => {
+    ;(window as any).__updateBanner = (v?: string) => {
+      setDebugLatest((prev) => prev ? null : { version: v || '99.0.0', changelog: 'Test update banner' })
+    }
+  }, [])
+  const effectiveLatest = debugLatest || latest
 
   useEffect(() => {
     const tourShown = window.localStorage.getItem('tourShown')
@@ -217,12 +227,15 @@ const App: React.FC = () => {
         />
       )}
       <HwidLimitAlert />
+      {effectiveLatest && effectiveLatest.version && (
+        <UpdateBanner version={effectiveLatest.version} changelog={effectiveLatest.changelog} />
+      )}
       {platform === 'darwin' && (
         <div className="fixed top-0.5 -left-1 h-14.25 flex items-center pl-3 z-100 app-drag">
           <WindowControls />
         </div>
       )}
-      <AppSidebar latest={latest} />
+      <AppSidebar latest={effectiveLatest} />
       <div className="relative z-10 main grow h-full overflow-y-auto">{page}</div>
     </SidebarProvider>
   )
