@@ -258,10 +258,18 @@ jobs:
           SKIP_PREPARE: "1"
         run: pnpm install
 
+      - name: Get Version
+        run: echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
+
       - name: Release updater file
         run: pnpm updater
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload latest.yml
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: latest.yml
 
   push-notify-to-telegram:
     runs-on: ubuntu-latest
