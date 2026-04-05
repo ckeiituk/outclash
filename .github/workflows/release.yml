@@ -148,7 +148,7 @@ jobs:
 
       - name: Install pnpm
         if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           run_install: false
 
@@ -249,7 +249,7 @@ jobs:
           node-version: "22"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           run_install: false
 
