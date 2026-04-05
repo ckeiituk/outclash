@@ -38,21 +38,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Fetch UPDATE logs
-        id: fetch_update_logs
+      - name: Fetch changelog
+        id: fetch_changelog
         run: |
-          if [ -f "UPDATELOG.md" ]; then
-            UPDATE_LOGS=$(awk '/^## v/{if(flag) exit; flag=1} flag' UPDATELOG.md)
+          if [ -f "changelog.md" ]; then
+            UPDATE_LOGS=$(cat changelog.md)
             if [ -n "$UPDATE_LOGS" ]; then
-              echo "Found update logs"
+              echo "Found changelog"
               echo "UPDATE_LOGS<<EOF" >> $GITHUB_ENV
               echo "$UPDATE_LOGS" >> $GITHUB_ENV
               echo "EOF" >> $GITHUB_ENV
             else
-              echo "No update sections found in UPDATELOG.md"
+              echo "changelog.md is empty"
             fi
           else
-            echo "UPDATELOG.md file not found"
+            echo "changelog.md file not found"
           fi
         shell: bash
 
@@ -274,21 +274,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Fetch UPDATE logs
-        id: fetch_update_logs
+      - name: Fetch changelog
+        id: fetch_changelog
         run: |
-          if [ -f "UPDATELOG.md" ]; then
-            UPDATE_LOGS=$(awk '/^## v/{if(flag) exit; flag=1} flag' UPDATELOG.md)
+          if [ -f "changelog.md" ]; then
+            UPDATE_LOGS=$(cat changelog.md)
             if [ -n "$UPDATE_LOGS" ]; then
-              echo "Found update logs"
+              echo "Found changelog"
               echo "UPDATE_LOGS<<EOF" >> $GITHUB_ENV
               echo "$UPDATE_LOGS" >> $GITHUB_ENV
               echo "EOF" >> $GITHUB_ENV
             else
-              echo "No update sections found in UPDATELOG.md"
+              echo "changelog.md is empty"
             fi
           else
-            echo "UPDATELOG.md file not found"
+            echo "changelog.md file not found"
           fi
         shell: bash
 
