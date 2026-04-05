@@ -120,16 +120,37 @@ jobs:
         include:
           - os: windows-latest
             arch: x64
+            targets: nsis
+          - os: windows-latest
+            arch: x64
+            targets: 7z
           - os: windows-latest
             arch: arm64
+            targets: nsis
+          - os: windows-latest
+            arch: arm64
+            targets: 7z
           - os: macos-latest
             arch: arm64
+            targets: pkg
           - os: macos-latest
             arch: x64
+            targets: pkg
           - os: ubuntu-latest
             arch: x64
+            targets: deb
+          - os: ubuntu-latest
+            arch: x64
+            targets: rpm
+          - os: ubuntu-latest
+            arch: x64
+            targets: pacman
           - os: ubuntu-latest
             arch: arm64
+            targets: deb
+          - os: ubuntu-latest
+            arch: arm64
+            targets: rpm
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -165,7 +186,7 @@ jobs:
         run: pnpm prepare --${{ matrix.arch }}
 
       - name: Install Build Tools (Linux pacman)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.targets == 'pacman'
         run: |
           sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
 
@@ -202,16 +223,17 @@ jobs:
           APPLE_API_KEY: ${{ matrix.os == 'macos-latest' && format('~/.appstoreconnect/private_keys/AuthKey_{0}.p8', secrets.APPLE_API_KEY) || '' }}
         shell: bash
         run: |
+          npx electron-vite build
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            pnpm build:win --${{ matrix.arch }}
+            npx electron-builder --publish never --win ${{ matrix.targets }} --${{ matrix.arch }}
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            pnpm build:linux --${{ matrix.arch }}
+            npx electron-builder --publish never --linux ${{ matrix.targets }} --${{ matrix.arch }}
           else
-            pnpm build:mac --${{ matrix.arch }}
+            npx electron-builder --publish never --mac ${{ matrix.targets }} --${{ matrix.arch }}
           fi
 
       - name: Add Portable Flag
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-latest' && matrix.targets == '7z'
         shell: pwsh
         run: |
           New-Item -Path "PORTABLE" -ItemType File
