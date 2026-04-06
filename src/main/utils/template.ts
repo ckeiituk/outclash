@@ -113,7 +113,7 @@ export const defaultControledMihomoConfig: Partial<MihomoConfig> = {
   },
   profile: {
     'store-selected': true,
-    'store-fake-ip': true
+    'store-fake-ip': false
   },
   'geo-auto-update': false,
   'geo-update-interval': 24,
