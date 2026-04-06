@@ -178,10 +178,14 @@ fn launch_installer(path: &PathBuf) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         // Use "open" verb via cmd /c start — triggers ShellExecute which
-        // shows SmartScreen prompt for unsigned exe instead of silently failing
+        // shows SmartScreen prompt for unsigned exe instead of silently failing.
+        // CREATE_NO_WINDOW hides the intermediate cmd.exe console.
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         Command::new("cmd")
             .args(["/c", "start", "", &path.to_string_lossy()])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| format!("Failed to launch installer: {}", e))?;
     }

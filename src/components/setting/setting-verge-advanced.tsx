@@ -94,6 +94,9 @@ const SettingVergeAdvanced = ({ onError }: Props) => {
       const bridge = await invoke<any | null>("bridge_check");
       if (bridge) {
         sessionStorage.removeItem("bridge-dismissed");
+        window.dispatchEvent(
+          new CustomEvent("bridge-recheck", { detail: bridge }),
+        );
         return;
       }
     } catch {}

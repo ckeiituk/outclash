@@ -51,6 +51,17 @@ export function BridgeDialog() {
       .catch(() => {});
   }, [dismissed]);
 
+  // Allow settings "Check for Updates" to trigger this dialog immediately
+  useEffect(() => {
+    const handleRecheck = (e: Event) => {
+      const detail = (e as CustomEvent<BridgeRelease>).detail;
+      if (detail) setRelease(detail);
+      setDismissed(false);
+    };
+    window.addEventListener("bridge-recheck", handleRecheck);
+    return () => window.removeEventListener("bridge-recheck", handleRecheck);
+  }, []);
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     listen<BridgeProgress>("bridge-progress", (event) => {
