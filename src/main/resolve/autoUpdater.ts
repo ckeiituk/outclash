@@ -11,6 +11,7 @@ import { promisify } from 'util'
 import { createHash } from 'crypto'
 import { setNotQuitDialog, mainWindow } from '..'
 import { disableSysProxy } from '../sys/sysproxy'
+import { stopCore } from '../core/manager'
 import { t } from '../utils/i18n'
 
 let downloadCancelToken: CancelTokenSource | null = null
@@ -129,10 +130,13 @@ export async function downloadAndInstallUpdate(version: string): Promise<void> {
 
     disableSysProxy(false)
     if (file.endsWith('.exe')) {
+      await stopCore()
       spawn(path.join(dataDir(), file), ['/S', '--force-run'], {
         detached: true,
         stdio: 'ignore'
       }).unref()
+      setNotQuitDialog()
+      app.quit()
     }
     if (file.endsWith('.7z')) {
       await copyFile(path.join(resourcesFilesDir(), '7za.exe'), path.join(dataDir(), '7za.exe'))
