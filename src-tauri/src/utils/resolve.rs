@@ -773,6 +773,13 @@ pub async fn resolve_scheme(param: String) -> Result<()> {
         }
     };
 
+    // Handle quit-for-update deep link from installer
+    if link_parsed.host_str() == Some("quit-for-update") {
+        log::info!(target: "app", "received quit-for-update signal from installer");
+        crate::feat::quit();
+        return Ok(());
+    }
+
     if link_parsed.scheme() == "clash"
         || link_parsed.scheme() == "koala-clash"
         || link_parsed.scheme() == "outclash"
