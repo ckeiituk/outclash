@@ -1,3 +1,35 @@
+; --- Graceful app shutdown for install/uninstall ---
+; Replaces electron-builder's default _CHECK_APP_RUNNING (1.3s then force-kill).
+; Sends outclash://quit-for-update deep link to trigger graceful cleanup
+; (TUN, system proxy, core), then force-kills as last resort.
+!macro customCheckAppRunning
+  !insertmacro FIND_PROCESS "${APP_EXECUTABLE_FILENAME}" $R0
+  ${if} $R0 == 0
+    ; Signal the running app to quit gracefully via deep link
+    DetailPrint `Closing running "${PRODUCT_NAME}"...`
+    nsExec::ExecToLog 'cmd /c start outclash://quit-for-update'
+
+    ; Wait up to 10 seconds for graceful cleanup
+    StrCpy $R1 0
+    cleanup_wait:
+      IntOp $R1 $R1 + 1
+      Sleep 1000
+      !insertmacro FIND_PROCESS "${APP_EXECUTABLE_FILENAME}" $R0
+      ${if} $R0 != 0
+        Goto cleanup_done
+      ${endIf}
+      IntCmp $R1 10 force_kill 0 force_kill
+      Goto cleanup_wait
+
+    force_kill:
+      ; App did not exit in time — force-kill as last resort
+      nsExec::ExecToLog 'taskkill /f /im "${APP_EXECUTABLE_FILENAME}"'
+      Sleep 1000
+
+    cleanup_done:
+  ${endIf}
+!macroend
+
 !macro customInit
   ; --- Migration from old Tauri/Koala Clash app ---
   ; Skip entirely if migration was already completed (i.e. this is an update)
