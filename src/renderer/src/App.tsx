@@ -227,16 +227,18 @@ const App: React.FC = () => {
         />
       )}
       <HwidLimitAlert />
-      {effectiveLatest && effectiveLatest.version && (
-        <UpdateBanner version={effectiveLatest.version} changelog={effectiveLatest.changelog} />
-      )}
       {platform === 'darwin' && (
         <div className="fixed top-0.5 -left-1 h-14.25 flex items-center pl-3 z-100 app-drag">
           <WindowControls />
         </div>
       )}
       <AppSidebar latest={effectiveLatest} />
-      <div className="relative z-10 main grow h-full overflow-y-auto">{page}</div>
+      <div className="relative z-10 flex flex-col grow h-full overflow-hidden">
+        {effectiveLatest && effectiveLatest.version && (
+          <UpdateBanner version={effectiveLatest.version} changelog={effectiveLatest.changelog} />
+        )}
+        <div className="main grow overflow-y-auto">{page}</div>
+      </div>
     </SidebarProvider>
   )
 }

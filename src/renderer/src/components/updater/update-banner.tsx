@@ -51,7 +51,7 @@ const UpdateBanner: React.FC<Props> = ({ version, changelog }) => {
           onClose={() => setOpenModal(false)}
         />
       )}
-      <div className="animate-slide-down fixed top-8 left-0 right-0 z-50 flex items-center justify-center gap-3 bg-primary/95 backdrop-blur-sm px-4 py-1.5 text-primary-foreground text-sm shadow-md">
+      <div className="animate-slide-down shrink-0 flex items-center justify-center gap-3 bg-primary/95 backdrop-blur-sm px-4 py-1.5 text-primary-foreground text-sm shadow-md">
         <CircleFadingArrowUp className="size-4 shrink-0 animate-pulse" />
         <span>{t('updater.versionReady', { version })}</span>
         <Button
