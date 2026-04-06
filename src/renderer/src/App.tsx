@@ -19,8 +19,8 @@ import ConfirmModal from '@renderer/components/base/base-confirm'
 import { SidebarProvider } from '@renderer/components/ui/sidebar'
 import AppSidebar from '@renderer/components/app-sidebar'
 import HwidLimitAlert from '@renderer/components/profiles/hwid-limit-alert'
-import UpdateBanner from '@renderer/components/updater/update-banner'
 import WindowControls from '@renderer/components/window-controls'
+import { UpdateInfoContext } from '@renderer/hooks/use-update-info'
 import mapDark from '@renderer/assets/map_darktheme.svg'
 import mapLight from '@renderer/assets/map_lighttheme.svg'
 
@@ -233,12 +233,9 @@ const App: React.FC = () => {
         </div>
       )}
       <AppSidebar latest={effectiveLatest} />
-      <div className="relative z-10 flex flex-col grow h-full overflow-hidden">
-        {effectiveLatest && effectiveLatest.version && (
-          <UpdateBanner version={effectiveLatest.version} changelog={effectiveLatest.changelog} />
-        )}
-        <div className="main grow overflow-y-auto">{page}</div>
-      </div>
+      <UpdateInfoContext.Provider value={effectiveLatest ?? null}>
+        <div className="relative z-10 main grow h-full overflow-y-auto">{page}</div>
+      </UpdateInfoContext.Provider>
     </SidebarProvider>
   )
 }

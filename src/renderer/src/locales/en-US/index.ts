@@ -856,7 +856,7 @@ export default {
   },
 
   updater: {
-    versionReady: '{{version}} ready',
+    versionReady: 'Update to v{{version}}',
     goToDownload: 'Go to Download',
     downloadProgress: 'Download Progress',
     cancelDownload: 'Cancel Download',

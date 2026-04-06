@@ -856,7 +856,7 @@ export default {
   },
 
   updater: {
-    versionReady: 'Версия {{version}} готова',
+    versionReady: 'Обновление до v{{version}}',
     goToDownload: 'Перейти к загрузке',
     downloadProgress: 'Прогресс загрузки',
     cancelDownload: 'Отменить загрузку',

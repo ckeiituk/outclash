@@ -1,6 +1,8 @@
 import { Button } from '@renderer/components/ui/button'
 import { platform } from '@renderer/utils/init'
 import WindowControls from '@renderer/components/window-controls'
+import UpdateBanner from '@renderer/components/updater/update-banner'
+import { useUpdateInfo } from '@renderer/hooks/use-update-info'
 import React, { forwardRef, useImperativeHandle, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronLeft } from 'lucide-react'
@@ -20,6 +22,7 @@ const BasePage = forwardRef<HTMLDivElement, Props>((props, ref) => {
   const location = useLocation()
   const navigate = useNavigate()
   const isSubPage = !sidebarPaths.has(location.pathname)
+  const updateInfo = useUpdateInfo()
 
   const contentRef = useRef<HTMLDivElement>(null)
   useImperativeHandle(ref, () => {
@@ -27,8 +30,8 @@ const BasePage = forwardRef<HTMLDivElement, Props>((props, ref) => {
   })
 
   return (
-    <div ref={contentRef} className="w-full h-full">
-      <div className="sticky top-0 z-40 h-14.25 w-full">
+    <div ref={contentRef} className="w-full h-full flex flex-col overflow-hidden">
+      <div className="shrink-0 z-40 h-14.25 w-full">
         <div className="app-drag px-2 pt-3 pb-2 flex justify-between h-14.25">
           <div className="title h-full text-lg leading-8 flex items-center gap-1">
             {(isSubPage || props.showBackButton) && (
@@ -49,7 +52,12 @@ const BasePage = forwardRef<HTMLDivElement, Props>((props, ref) => {
           </div>
         </div>
       </div>
-      <div className="content h-[calc(100vh-57px)] overflow-y-auto custom-scrollbar">
+      <div className="content grow overflow-y-auto custom-scrollbar">
+        {updateInfo && updateInfo.version && (
+          <div className="sticky top-0 z-30 pt-2">
+            <UpdateBanner version={updateInfo.version} changelog={updateInfo.changelog} />
+          </div>
+        )}
         {props.children}
       </div>
     </div>

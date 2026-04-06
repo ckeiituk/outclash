@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@renderer/components/ui/button'
 import { CircleFadingArrowUp, X } from 'lucide-react'
 import UpdaterModal from './updater-modal'
 import { cancelUpdate } from '@renderer/utils/ipc'
@@ -51,17 +50,15 @@ const UpdateBanner: React.FC<Props> = ({ version, changelog }) => {
           onClose={() => setOpenModal(false)}
         />
       )}
-      <div className="animate-slide-down shrink-0 flex items-center justify-center gap-3 bg-primary/95 backdrop-blur-sm px-4 py-1.5 text-primary-foreground text-sm shadow-md">
+      <div className="flex items-center justify-center gap-3 bg-primary/95 backdrop-blur-sm px-4 py-1.5 text-primary-foreground text-sm shadow-md rounded-lg mx-2">
         <CircleFadingArrowUp className="size-4 shrink-0 animate-pulse" />
         <span>{t('updater.versionReady', { version })}</span>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="h-6 px-3 text-xs"
+        <button
+          className="rounded-md bg-primary-foreground/20 px-3 py-0.5 text-xs hover:bg-primary-foreground/30 transition-colors"
           onClick={() => setOpenModal(true)}
         >
           {t('updater.updateNow')}
-        </Button>
+        </button>
         <button
           className="ml-1 rounded-full p-0.5 hover:bg-primary-foreground/20 transition-colors"
           onClick={() => setDismissed(true)}

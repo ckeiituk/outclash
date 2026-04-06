@@ -913,7 +913,7 @@ export default {
   },
 
   updater: {
-    versionReady: '{{version}} 版本就绪',
+    versionReady: '更新至 v{{version}}',
     goToDownload: '前往下载',
     downloadProgress: '下载进度',
     cancelDownload: '取消下载',
