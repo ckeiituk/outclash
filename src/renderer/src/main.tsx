@@ -7,7 +7,7 @@ import '@renderer/assets/main.css'
 import App from '@renderer/App'
 import BaseErrorBoundary from './components/base/base-error-boundary'
 import { Toaster } from './components/ui/sonner'
-import { openDevTools, quitApp, patchAppConfig } from './utils/ipc'
+import { openDevTools, quitApp, patchAppConfig, getAppConfig } from './utils/ipc'
 import { mutate } from 'swr'
 import { AppConfigProvider } from './hooks/use-app-config'
 import { ControledMihomoConfigProvider } from './hooks/use-controled-mihomo-config'
@@ -16,11 +16,19 @@ import { RulesProvider } from './hooks/use-rules'
 import { GroupsProvider } from './hooks/use-groups'
 
 let F12Count = 0
+let devModeEnabled = false
+
+getAppConfig()
+  .then((cfg) => {
+    devModeEnabled = !!cfg?.devMode
+  })
+  .catch(() => {})
 
 ;(window as any).__dev = async (enable?: boolean) => {
   const val = enable !== undefined ? enable : true
   await patchAppConfig({ devMode: val })
   await mutate('getConfig')
+  devModeEnabled = val
   console.log(`devMode ${val ? 'enabled' : 'disabled'}`)
   return val
 }
@@ -53,10 +61,14 @@ init().then(() => {
     }
     if (e.key === 'F12') {
       e.preventDefault()
-      F12Count++
-      if (F12Count >= 5) {
+      if (devModeEnabled) {
         openDevTools()
-        F12Count = 0
+      } else {
+        F12Count++
+        if (F12Count >= 5) {
+          openDevTools()
+          F12Count = 0
+        }
       }
     }
   })
