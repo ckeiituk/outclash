@@ -52,10 +52,14 @@ const ProxyProvider: React.FC = () => {
   })
 
   useEffect(() => {
+    window.electron.ipcRenderer.on('profile-reloaded', () => {
+      mutate()
+    })
     window.electron.ipcRenderer.on('core-started', () => {
       mutate()
     })
     return (): void => {
+      window.electron.ipcRenderer.removeAllListeners('profile-reloaded')
       window.electron.ipcRenderer.removeAllListeners('core-started')
     }
   }, [])
