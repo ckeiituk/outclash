@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@renderer/components/ui/select'
-import { getFilePath, readTextFile, restartCore, createProfileFromShareLink } from '@renderer/utils/ipc'
+import { getFilePath, readTextFile, createProfileFromShareLink } from '@renderer/utils/ipc'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { useTranslation } from 'react-i18next'
 import {
@@ -60,7 +60,7 @@ function isShareLink(url: string): boolean {
 const EditInfoModal: React.FC<Props> = (props) => {
   const { t } = useTranslation()
   const { appConfig } = useAppConfig()
-  const { item, isCurrent, updateProfileItem, onClose } = props
+  const { item, updateProfileItem, onClose } = props
   const [values, setValues] = useState({ ...item, autoUpdate: item.autoUpdate ?? true })
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [urlTouched, setUrlTouched] = useState(false)
@@ -91,9 +91,6 @@ const EditInfoModal: React.FC<Props> = (props) => {
       }
       const itemToSave = { ...values }
       await updateProfileItem(itemToSave)
-      if (item.id && isCurrent) {
-        await restartCore()
-      }
       closeRef.current?.click()
     } catch (e) {
       toast.error(`${e}`)

@@ -1,5 +1,12 @@
 import { getControledMihomoConfig } from './controledMihomo'
-import { mihomoProfileWorkDir, mihomoWorkDir, profileConfigPath, profilePath, rulePath } from '../utils/dirs'
+import {
+  logPath,
+  mihomoProfileWorkDir,
+  mihomoWorkDir,
+  profileConfigPath,
+  profilePath,
+  rulePath
+} from '../utils/dirs'
 import { addProfileUpdater, delProfileUpdater } from '../core/profileUpdater'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
 import { restartCore } from '../core/manager'
@@ -59,8 +66,15 @@ export async function updateProfileItem(item: ProfileItem): Promise<void> {
     throw new Error('Profile not found')
   }
   config.items[index] = item
-  if (!item.autoUpdate) await delProfileUpdater(item.id)
   await setProfileConfig(config)
+  await syncProfileUpdater(item)
+}
+
+async function syncProfileUpdater(item: ProfileItem): Promise<void> {
+  await delProfileUpdater(item.id)
+  if (item.type === 'remote' && item.interval && item.autoUpdate !== false) {
+    await addProfileUpdater(item)
+  }
 }
 
 export async function addProfileItem(item: Partial<ProfileItem>): Promise<void> {
@@ -85,7 +99,9 @@ export async function addProfileItem(item: Partial<ProfileItem>): Promise<void> 
   if (!isExisting || !config.current) {
     await changeCurrentProfile(newItem.id)
   }
-  await addProfileUpdater(newItem)
+  if (!isExisting) {
+    await addProfileUpdater(newItem)
+  }
 }
 
 export async function removeProfileItem(id: string): Promise<void> {
@@ -334,10 +350,34 @@ export async function getProfileParseStr(id: string | undefined): Promise<string
   return stringifyYaml(profile)
 }
 
+async function appendProfileReloadLog(message: string): Promise<void> {
+  await writeFile(logPath(), `[Profile]: ${message}\n`, { flag: 'a' })
+}
+
+async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
+  try {
+    await appendProfileReloadLog(`reload start for profile ${id}`)
+
+    const [{ generateProfile }, { mihomoReloadConfig }] = await Promise.all([
+      import('../core/factory'),
+      import('../core/mihomoApi')
+    ])
+
+    await generateProfile()
+    await mihomoReloadConfig()
+
+    await appendProfileReloadLog(`reload success for profile ${id}`)
+  } catch (error) {
+    await appendProfileReloadLog(`reload failed for profile ${id}, fallback restart: ${error}`)
+    await restartCore()
+    await appendProfileReloadLog(`fallback restart success for profile ${id}`)
+  }
+}
+
 export async function setProfileStr(id: string, content: string): Promise<void> {
-  const { current } = await getProfileConfig()
+  const { current } = await getProfileConfig(true)
   await writeFile(profilePath(id), content, 'utf-8')
-  if (current === id) await restartCore()
+  if (current === id) await reloadCurrentProfileOrRestart(id)
 }
 
 export async function getProfile(id: string | undefined): Promise<MihomoConfig> {
