@@ -6,7 +6,7 @@ import { tray } from '../resolve/tray'
 import { calcTraffic } from '../utils/calc'
 import { getRuntimeConfig } from './factory'
 import { floatingWindow } from '../resolve/floatingWindow'
-import { mihomoIpcPath } from '../utils/dirs'
+import { mihomoIpcPath, mihomoWorkConfigPath } from '../utils/dirs'
 
 let axiosIns: AxiosInstance = null!
 let mihomoTrafficWs: WebSocket | null = null
@@ -60,6 +60,16 @@ export const mihomoConfig = async (): Promise<ControllerConfigs> => {
 export const patchMihomoConfig = async (patch: Partial<ControllerConfigs>): Promise<void> => {
   const instance = await getAxios()
   return await instance.patch('/configs', patch)
+}
+
+export const mihomoReloadConfig = async (): Promise<void> => {
+  const instance = await getAxios()
+  const { diffWorkDir = false } = await getAppConfig()
+  const { current } = await import('../config').then((mod) => mod.getProfileConfig(true))
+  const configPath = diffWorkDir ? mihomoWorkConfigPath(current) : mihomoWorkConfigPath('work')
+  return await instance.put('/configs?force=true', {
+    path: configPath
+  })
 }
 
 export const mihomoCloseConnection = async (id: string): Promise<void> => {
