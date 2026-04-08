@@ -62,14 +62,41 @@ export const patchMihomoConfig = async (patch: Partial<ControllerConfigs>): Prom
   return await instance.patch('/configs', patch)
 }
 
+const waitForMihomoReloadReady = async (): Promise<void> => {
+  const maxRetries = 30
+  const retryInterval = 100
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await mihomoGroups()
+      return
+    } catch {
+      await new Promise<void>((resolve) => setTimeout(resolve, retryInterval))
+    }
+  }
+}
+
+const notifyProfileReloaded = (): void => {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    mainWindow.webContents.send('profile-reloaded')
+  }, 100)
+}
+
 export const mihomoReloadConfig = async (): Promise<void> => {
   const instance = await getAxios()
   const { diffWorkDir = false } = await getAppConfig()
   const { current } = await import('../config').then((mod) => mod.getProfileConfig(true))
   const configPath = diffWorkDir ? mihomoWorkConfigPath(current) : mihomoWorkConfigPath('work')
-  return await instance.put('/configs?force=true', {
+
+  await instance.put('/configs?force=true', {
     path: configPath
   })
+
+  await waitForMihomoReloadReady()
+  notifyProfileReloaded()
 }
 
 export const mihomoCloseConnection = async (id: string): Promise<void> => {

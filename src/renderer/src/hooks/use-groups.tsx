@@ -19,11 +19,15 @@ export const GroupsProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     window.electron.ipcRenderer.on('groupsUpdated', () => {
       mutate()
     })
+    window.electron.ipcRenderer.on('profile-reloaded', () => {
+      mutate()
+    })
     window.electron.ipcRenderer.on('core-started', () => {
       mutate()
     })
     return (): void => {
       window.electron.ipcRenderer.removeAllListeners('groupsUpdated')
+      window.electron.ipcRenderer.removeAllListeners('profile-reloaded')
       window.electron.ipcRenderer.removeAllListeners('core-started')
     }
   }, [])
