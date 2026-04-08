@@ -378,6 +378,9 @@ async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
     ])
 
     await generateProfile()
+    if (process.env.OUTCLASH_FORCE_PROFILE_RELOAD_FAIL === '1') {
+      throw new Error('Forced reload failure for testing')
+    }
     await mihomoReloadConfig()
 
     await appendProfileReloadLog(`reload success for profile ${id}`)
