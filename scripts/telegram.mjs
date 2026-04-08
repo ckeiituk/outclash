@@ -5,8 +5,8 @@ const chat_id = '@OutClashChannel'
 const pkg = readFileSync('package.json', 'utf-8')
 const changelog = readFileSync('changelog.md', 'utf-8')
 const { version } = JSON.parse(pkg)
-const downloadUrl = `https://github.com/ckeiituk/outclash/releases/download/v${version}`
-let content = `<b>🌟 <a href="https://github.com/ckeiituk/outclash/releases/tag/v${version}">OutClash v${version}</a> 正式发布</b>\n\n`
+const downloadUrl = `https://github.com/ckeiituk/outclash/releases/download/${version}`
+let content = `<b>🌟 <a href="https://github.com/ckeiituk/outclash/releases/tag/${version}">OutClash v${version}</a> 正式发布</b>\n\n`
 for (const line of changelog.split('\n')) {
   if (line.length === 0) {
     content += '\n'

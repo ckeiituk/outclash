@@ -22,8 +22,8 @@ async function resolveUpdater() {
     page: 1,
   });
 
-  // get the latest publish tag (vX.Y.Z)
-  const tag = tags.find((t) => /^v\d+\.\d+\.\d+$/.test(t.name));
+  // get the latest publish tag (X.Y.Z)
+  const tag = tags.find((t) => /^\d+\.\d+\.\d+$/.test(t.name));
 
   console.log(tag);
   console.log();

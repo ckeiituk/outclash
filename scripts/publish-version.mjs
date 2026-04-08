@@ -41,10 +41,10 @@ async function run() {
     const pkg = await import(path.join(rootDir, "package.json"), {
       assert: { type: "json" },
     });
-    tag = `v${pkg.default.version}-alpha`;
+    tag = pkg.default.version;
   } else if (isSemver(versionArg)) {
-    // 1.2.3 或 v1.2.3
-    tag = versionArg.startsWith("v") ? versionArg : `v${versionArg}`;
+    // 1.2.3 或旧式 v1.2.3 输入
+    tag = versionArg.startsWith("v") ? versionArg.slice(1) : versionArg;
   }
 
   if (tag) {

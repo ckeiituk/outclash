@@ -5,14 +5,14 @@
  *   pnpm release-version <version>
  *
  * <version> can be:
- *   - A full semver version (e.g., 1.2.3, v1.2.3, 1.2.3-beta, v1.2.3+build)
+ *   - A full semver version (e.g., 1.2.3, 1.2.3-beta, 1.2.3+build)
  *   - A tag: "alpha", "beta", "rc", or "autobuild"
  *     - "alpha", "beta", "rc": Appends the tag to the current base version (e.g., 1.2.3-beta)
  *     - "autobuild": Appends a timestamped autobuild tag (e.g., 1.2.3+autobuild.2406101530)
  *
  * Examples:
  *   pnpm release-version 1.2.3
- *   pnpm release-version v1.2.3-beta
+ *   pnpm release-version 1.2.3-beta
  *   pnpm release-version beta
  *   pnpm release-version autobuild
  *
@@ -76,7 +76,7 @@ function isValidVersion(version) {
  * @returns {string}
  */
 function normalizeVersion(version) {
-  return version.startsWith("v") ? version : `v${version}`;
+  return version.startsWith("v") ? version.slice(1) : version;
 }
 
 /**

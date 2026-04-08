@@ -33,8 +33,8 @@ jobs:
             echo "package.json version is not an alpha version."
             exit 1
           fi
-          if [[ "$TAG_REF" != "v$PKG_VERSION" ]]; then
-            echo "Tag ($TAG_REF) does not match package.json version (v$PKG_VERSION)."
+          if [[ "$TAG_REF" != "$PKG_VERSION" ]]; then
+            echo "Tag ($TAG_REF) does not match package.json version ($PKG_VERSION)."
             exit 1
           fi
           echo "Alpha tag and package.json version are consistent."

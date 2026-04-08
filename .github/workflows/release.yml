@@ -3,7 +3,7 @@ name: Release Build
 on:
   push:
     tags:
-      - "v*.*.*"
+      - "*.*.*"
 permissions: write-all
 env:
   MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_API_KEY_CONTENT != '' }}
@@ -25,8 +25,12 @@ jobs:
           echo "Current tag: $TAG_REF"
           PKG_VERSION=$(jq -r .version package.json)
           echo "package.json version: $PKG_VERSION"
-          if [[ "$TAG_REF" != "v$PKG_VERSION" ]]; then
-            echo "Tag ($TAG_REF) does not match package.json version (v$PKG_VERSION)."
+          if [[ "$PKG_VERSION" == *-* || "$PKG_VERSION" == *+* ]]; then
+            echo "Release workflow only supports stable package.json versions."
+            exit 1
+          fi
+          if [[ "$TAG_REF" != "$PKG_VERSION" ]]; then
+            echo "Tag ($TAG_REF) does not match package.json version ($PKG_VERSION)."
             exit 1
           fi
           echo "Tag and package.json version are consistent."
@@ -64,7 +68,7 @@ jobs:
       - name: Publish release (publish draft)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
           name: "OutClash v${{ env.VERSION }}"
           draft: false
           prerelease: false
@@ -85,20 +89,20 @@ jobs:
           ## Which version should I download?
 
           ### Linux
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_amd64.deb"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_x86_64.rpm"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=fedora&label=RPM"> </a>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_amd64.deb"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x86_64.rpm"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=fedora&label=RPM"> </a>
 
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_aarch64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_aarch64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
 
           ### Windows
           #### Normal version (recommended)
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_arm64-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
 
           #### Portable version
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_x64-portable.7z"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=7z"></a><br>
-          <a href="https://github.com/ckeiituk/clash-verge-rev-lite/releases/download/v${{ env.VERSION }}/OutClash_arm64-portable.7z"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=7z"></a>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64-portable.7z"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=7z"></a><br>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64-portable.7z"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=7z"></a>
 
           Created at ${{ env.BUILDTIME }}.
           EOF
@@ -106,7 +110,7 @@ jobs:
       - name: Upload Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{env.VERSION}}
+          tag_name: ${{env.VERSION}}
           name: "OutClash v${{env.VERSION}}"
           body_path: release.txt
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -250,7 +254,7 @@ jobs:
         if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
           name: "OutClash v${{ env.VERSION }}"
           token: ${{ secrets.GITHUB_TOKEN }}
           fail_on_unmatched_files: false
@@ -289,7 +293,7 @@ jobs:
       - name: Upload latest.yml
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}
           files: latest.yml
 
@@ -341,7 +345,7 @@ jobs:
 
           $UPDATE_LOGS
 
-          [Ссылка на релиз](https://github.com/ckeiituk/clash-verge-rev-lite/releases/latest)
+          [Ссылка на релиз](https://github.com/ckeiituk/outclash/releases/latest)
 
           EOF
 
