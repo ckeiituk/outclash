@@ -354,6 +354,20 @@ async function appendProfileReloadLog(message: string): Promise<void> {
   await writeFile(logPath(), `[Profile]: ${message}\n`, { flag: 'a' })
 }
 
+function formatProfileReloadError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack || error.message
+  }
+  if (typeof error === 'string') {
+    return error
+  }
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
 async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
   try {
     await appendProfileReloadLog(`reload start for profile ${id}`)
@@ -368,9 +382,19 @@ async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
 
     await appendProfileReloadLog(`reload success for profile ${id}`)
   } catch (error) {
-    await appendProfileReloadLog(`reload failed for profile ${id}, fallback restart: ${error}`)
+    await appendProfileReloadLog(
+      `reload failed for profile ${id}, fallback restart: ${formatProfileReloadError(error)}`
+    )
     await restartCore()
-    await appendProfileReloadLog(`fallback restart success for profile ${id}`)
+    try {
+      const { mihomoVersion } = await import('../core/mihomoApi')
+      await mihomoVersion()
+      await appendProfileReloadLog(`fallback restart success for profile ${id}`)
+    } catch (restartError) {
+      await appendProfileReloadLog(
+        `fallback restart verification failed for profile ${id}: ${formatProfileReloadError(restartError)}`
+      )
+    }
   }
 }
 
