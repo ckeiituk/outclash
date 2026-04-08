@@ -41,7 +41,7 @@ export async function checkUpdate(): Promise<AppVersion | undefined> {
 
 export async function downloadAndInstallUpdate(version: string): Promise<void> {
   const { 'mixed-port': mixedPort = 7897 } = await getControledMihomoConfig()
-  const releaseTag = version
+  const releaseTag = version.startsWith('v') ? version : `v${version}`
   const baseUrl = `https://github.com/ckeiituk/outclash/releases/download/${releaseTag}/`
   const fileMap = {
     'win32-x64': `OutClash_x64-setup.exe`,

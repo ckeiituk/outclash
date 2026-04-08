@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'fs'
 const pkg = readFileSync('package.json', 'utf-8')
 let changelog = readFileSync('changelog.md', 'utf-8')
 const { version } = JSON.parse(pkg)
-const downloadUrl = `https://github.com/ckeiituk/outclash/releases/download/${version}`
+const downloadUrl = `https://github.com/ckeiituk/outclash/releases/download/v${version}`
 const latest = {
   version,
   changelog
