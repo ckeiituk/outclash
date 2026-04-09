@@ -6,34 +6,19 @@ import { servicePath } from '../utils/dirs'
 import { net } from 'electron'
 import { disableProxy, setPac, setProxy } from '../service/api'
 import { t } from '../utils/i18n'
+import { createSystemProxyController } from './sysproxy-controller'
 
 let defaultBypass: string[]
-let triggerSysProxyTimer: NodeJS.Timeout | null = null
+const systemProxyController = createSystemProxyController<ReturnType<typeof setTimeout>>({
+  isOnline: () => net.isOnline(),
+  applySystemProxy: setSysProxy,
+  resetSystemProxy: disableSysProxy,
+  setRetryTimeout: (callback: () => void, delayMs: number) => setTimeout(callback, delayMs),
+  clearRetryTimeout: (timer: ReturnType<typeof setTimeout>) => clearTimeout(timer)
+})
 
-function clearPendingSysProxyRetry(): void {
-  if (triggerSysProxyTimer) {
-    clearTimeout(triggerSysProxyTimer)
-    triggerSysProxyTimer = null
-  }
-}
-
-export async function setSystemProxyEnabled(
-  enable: boolean,
-  onlyActiveDevice: boolean
-): Promise<void> {
-  clearPendingSysProxyRetry()
-  if (!enable) {
-    await resetSystemProxy(onlyActiveDevice)
-    return
-  }
-  if (net.isOnline()) {
-    await setSysProxy(onlyActiveDevice)
-    return
-  }
-  triggerSysProxyTimer = setTimeout(() => {
-    triggerSysProxyTimer = null
-    void setSystemProxyEnabled(enable, onlyActiveDevice)
-  }, 5000)
+export async function setSystemProxyEnabled(enable: boolean, onlyActiveDevice: boolean): Promise<void> {
+  await systemProxyController.setSystemProxyEnabled(enable, onlyActiveDevice)
 }
 
 export async function triggerSysProxy(enable: boolean, onlyActiveDevice: boolean): Promise<void> {
@@ -41,8 +26,7 @@ export async function triggerSysProxy(enable: boolean, onlyActiveDevice: boolean
 }
 
 export async function resetSystemProxy(onlyActiveDevice: boolean): Promise<void> {
-  clearPendingSysProxyRetry()
-  await disableSysProxy(onlyActiveDevice)
+  await systemProxyController.resetSystemProxy(onlyActiveDevice)
 }
 
 async function setSysProxy(onlyActiveDevice: boolean): Promise<void> {
