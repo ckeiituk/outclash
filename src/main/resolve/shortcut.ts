@@ -7,7 +7,7 @@ import {
   patchAppConfig,
   patchControledMihomoConfig
 } from '../config'
-import { triggerSysProxy } from '../sys/sysproxy'
+import { setSystemProxyEnabled } from '../sys/sysproxy'
 import { patchMihomoConfig } from '../core/mihomoApi'
 import { quitWithoutCore, restartCore } from '../core/manager'
 import { floatingWindow, triggerFloatingWindow } from './floatingWindow'
@@ -42,7 +42,7 @@ export async function registerShortcut(
           onlyActiveDevice = false
         } = await getAppConfig()
         try {
-          await triggerSysProxy(!enable, onlyActiveDevice)
+          await setSystemProxyEnabled(!enable, onlyActiveDevice)
           await patchAppConfig({ sysProxy: { enable: !enable } })
           new Notification({
             title: !enable ? t('notification.sysProxyEnabled') : t('notification.sysProxyDisabled')

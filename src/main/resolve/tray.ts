@@ -30,7 +30,7 @@ import {
   screen,
   Tray
 } from 'electron'
-import { triggerSysProxy } from '../sys/sysproxy'
+import { setSystemProxyEnabled } from '../sys/sysproxy'
 import { quitWithoutCore, restartCore } from '../core/manager'
 import { floatingWindow } from './floatingWindow'
 import { is } from '@electron-toolkit/utils'
@@ -240,7 +240,7 @@ export const buildContextMenu = async (): Promise<Menu> => {
             floatingWindow?.webContents.send('controledMihomoConfigUpdated')
             await restartCore()
           } else {
-            await triggerSysProxy(enable, onlyActiveDevice)
+            await setSystemProxyEnabled(enable, onlyActiveDevice)
             await patchAppConfig({ sysProxy: { enable } })
             mainWindow?.webContents.send('appConfigUpdated')
             floatingWindow?.webContents.send('appConfigUpdated')

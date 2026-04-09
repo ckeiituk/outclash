@@ -10,17 +10,39 @@ import { t } from '../utils/i18n'
 let defaultBypass: string[]
 let triggerSysProxyTimer: NodeJS.Timeout | null = null
 
-export async function triggerSysProxy(enable: boolean, onlyActiveDevice: boolean): Promise<void> {
-  if (net.isOnline()) {
-    if (enable) {
-      await setSysProxy(onlyActiveDevice)
-    } else {
-      await disableSysProxy(onlyActiveDevice)
-    }
-  } else {
-    if (triggerSysProxyTimer) clearTimeout(triggerSysProxyTimer)
-    triggerSysProxyTimer = setTimeout(() => triggerSysProxy(enable, onlyActiveDevice), 5000)
+function clearPendingSysProxyRetry(): void {
+  if (triggerSysProxyTimer) {
+    clearTimeout(triggerSysProxyTimer)
+    triggerSysProxyTimer = null
   }
+}
+
+export async function setSystemProxyEnabled(
+  enable: boolean,
+  onlyActiveDevice: boolean
+): Promise<void> {
+  clearPendingSysProxyRetry()
+  if (!enable) {
+    await resetSystemProxy(onlyActiveDevice)
+    return
+  }
+  if (net.isOnline()) {
+    await setSysProxy(onlyActiveDevice)
+    return
+  }
+  triggerSysProxyTimer = setTimeout(() => {
+    triggerSysProxyTimer = null
+    void setSystemProxyEnabled(enable, onlyActiveDevice)
+  }, 5000)
+}
+
+export async function triggerSysProxy(enable: boolean, onlyActiveDevice: boolean): Promise<void> {
+  await setSystemProxyEnabled(enable, onlyActiveDevice)
+}
+
+export async function resetSystemProxy(onlyActiveDevice: boolean): Promise<void> {
+  clearPendingSysProxyRetry()
+  await disableSysProxy(onlyActiveDevice)
 }
 
 async function setSysProxy(onlyActiveDevice: boolean): Promise<void> {
@@ -117,7 +139,7 @@ async function setSysProxy(onlyActiveDevice: boolean): Promise<void> {
   }
 }
 
-export async function disableSysProxy(onlyActiveDevice: boolean): Promise<void> {
+async function disableSysProxy(onlyActiveDevice: boolean): Promise<void> {
   await stopPacServer()
   const { sysProxy } = await getAppConfig()
   const { settingMode = 'exec' } = sysProxy

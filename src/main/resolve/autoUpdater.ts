@@ -10,7 +10,7 @@ import { exec, spawn } from 'child_process'
 import { promisify } from 'util'
 import { createHash } from 'crypto'
 import { setNotQuitDialog, mainWindow } from '..'
-import { disableSysProxy } from '../sys/sysproxy'
+import { resetSystemProxy } from '../sys/sysproxy'
 import { t } from '../utils/i18n'
 
 let downloadCancelToken: CancelTokenSource | null = null
@@ -127,7 +127,7 @@ export async function downloadAndInstallUpdate(version: string): Promise<void> {
       progress: 100
     })
 
-    disableSysProxy(false)
+    void resetSystemProxy(false)
     if (file.endsWith('.exe')) {
       spawn(path.join(dataDir(), file), ['/S', '--force-run'], {
         detached: true,

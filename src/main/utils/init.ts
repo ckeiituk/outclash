@@ -25,7 +25,7 @@ import path from 'path'
 import {
   startPacServer
 } from '../resolve/server'
-import { triggerSysProxy } from '../sys/sysproxy'
+import { setSystemProxyEnabled } from '../sys/sysproxy'
 import {
   getAppConfig,
   getControledMihomoConfig,
@@ -230,7 +230,7 @@ export async function init(): Promise<void> {
         if (sysProxy.enable) {
           await startPacServer()
         }
-        await triggerSysProxy(sysProxy.enable, onlyActiveDevice)
+        await setSystemProxyEnabled(sysProxy.enable, onlyActiveDevice)
       } catch {
         // ignore
       }

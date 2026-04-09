@@ -36,7 +36,7 @@ import { mainWindow, showError } from '..'
 import path from 'path'
 import os from 'os'
 import { createWriteStream, existsSync } from 'fs'
-import { disableSysProxy, triggerSysProxy } from '../sys/sysproxy'
+import { resetSystemProxy, setSystemProxyEnabled } from '../sys/sysproxy'
 import { getAxios } from './mihomoApi'
 import { setSysDns } from '../service/api'
 import { t } from '../utils/i18n'
@@ -636,12 +636,12 @@ export async function startNetworkDetection(): Promise<void> {
       if ((networkDownHandled && !child) || (child && child.killed)) {
         const promises = await startCore()
         await Promise.all(promises)
-        if (sysProxy.enable) triggerSysProxy(true, onlyActiveDevice)
+        if (sysProxy.enable) void setSystemProxyEnabled(true, onlyActiveDevice)
         networkDownHandled = false
       }
     } else {
       if (!networkDownHandled) {
-        if (sysProxy.enable) disableSysProxy(onlyActiveDevice)
+        if (sysProxy.enable) void resetSystemProxy(onlyActiveDevice)
         await stopCore()
         networkDownHandled = true
       }
