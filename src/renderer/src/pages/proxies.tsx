@@ -131,13 +131,11 @@ const Proxies: React.FC = () => {
         newDelaying[index] = true
         return newDelaying
       })
-      const poll = setInterval(() => mutate(), 600)
       try {
         await mihomoGroupDelay(groups[index].name, groups[index].testUrl)
       } catch {
         // ignore
       } finally {
-        clearInterval(poll)
         mutate()
         setDelaying((prev) => {
           const newDelaying = [...prev]
