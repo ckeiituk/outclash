@@ -827,7 +827,8 @@ const Connections: React.FC = () => {
       {isSettingModalOpen && (
         <ConnectionSettingModal onClose={() => setIsSettingModalOpen(false)} />
       )}
-      <div className="overflow-x-auto sticky top-0 z-40">
+      <div className="flex flex-col h-full">
+      <div className="shrink-0 overflow-x-auto sticky top-0 z-40">
         <div className="flex px-2 pb-2 gap-2">
           {isProcessListView ? (
             <>
@@ -976,7 +977,7 @@ const Connections: React.FC = () => {
           )}
         </div>
       </div>
-      <div className="h-[calc(100vh-106px)] mt-px mb-2">
+      <div className="flex-1 min-h-0 mt-px mb-2">
         {isProcessListView ? (
           <Virtuoso data={filteredProcessGroups} itemContent={renderProcessItem} />
         ) : viewMode === 'list' ? (
@@ -995,6 +996,7 @@ const Connections: React.FC = () => {
             onSortChange={handleSortChange}
           />
         )}
+      </div>
       </div>
     </BasePage>
   )
