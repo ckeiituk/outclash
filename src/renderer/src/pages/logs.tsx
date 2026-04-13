@@ -88,7 +88,8 @@ const Logs: React.FC = () => {
 
   return (
     <BasePage title={t('pages.logs.title')}>
-      <div className="sticky top-0 z-40">
+      <div className="flex flex-col h-full">
+      <div className="shrink-0 sticky top-0 z-40">
         <div className="w-full flex px-2 pb-2">
           <Input
             className="h-8 text-sm"
@@ -119,7 +120,7 @@ const Logs: React.FC = () => {
         </div>
         <Separator className="mx-2" />
       </div>
-      <div className="h-[calc(100vh-108px)] mt-px">
+      <div className="flex-1 min-h-0 mt-px">
         <Virtuoso
           ref={virtuosoRef}
           data={filteredLogs}
@@ -137,6 +138,7 @@ const Logs: React.FC = () => {
             )
           }}
         />
+      </div>
       </div>
     </BasePage>
   )
