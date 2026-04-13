@@ -9,6 +9,7 @@ import {
   getImageDataURL,
   mihomoChangeProxy,
   mihomoCloseAllConnections,
+  mihomoGroupDelay,
   mihomoProxyDelay
 } from '@renderer/utils/ipc'
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
@@ -53,7 +54,6 @@ const Proxies: React.FC = () => {
     proxyDisplayOrder = 'default',
     autoCloseConnection = true,
     proxyCols = 'auto',
-    delayTestConcurrency = 50,
     expandProxyGroups = false
   } = appConfig || {}
   const [cols, setCols] = useState(1)
@@ -118,7 +118,7 @@ const Proxies: React.FC = () => {
 
   const onGroupDelay = useCallback(
     async (index: number): Promise<void> => {
-      if (allProxies[index].length === 0) {
+      if (!isOpen[index]) {
         setIsOpen((prev) => {
           const newOpen = [...prev]
           newOpen[index] = true
@@ -130,35 +130,20 @@ const Proxies: React.FC = () => {
         newDelaying[index] = true
         return newDelaying
       })
-      const result: Promise<void>[] = []
-      const runningList: Promise<void>[] = []
-      for (const proxy of allProxies[index]) {
-        const promise = Promise.resolve().then(async () => {
-          try {
-            await mihomoProxyDelay(proxy.name, groups[index].testUrl)
-          } catch {
-            // ignore
-          } finally {
-            mutate()
-          }
+      try {
+        await mihomoGroupDelay(groups[index].name, groups[index].testUrl)
+      } catch {
+        // ignore
+      } finally {
+        mutate()
+        setDelaying((prev) => {
+          const newDelaying = [...prev]
+          newDelaying[index] = false
+          return newDelaying
         })
-        result.push(promise)
-        const running = promise.then(() => {
-          runningList.splice(runningList.indexOf(running), 1)
-        })
-        runningList.push(running)
-        if (runningList.length >= (delayTestConcurrency || 50)) {
-          await Promise.race(runningList)
-        }
       }
-      await Promise.all(result)
-      setDelaying((prev) => {
-        const newDelaying = [...prev]
-        newDelaying[index] = false
-        return newDelaying
-      })
     },
-    [allProxies, groups, delayTestConcurrency, mutate]
+    [isOpen, groups, mutate]
   )
 
   const calcCols = useCallback((): number => {
@@ -391,6 +376,7 @@ const Proxies: React.FC = () => {
                 selected={
                   allProxies[groupIndex][innerIndex * cols + i]?.name === groups[groupIndex].now
                 }
+                testing={delaying[groupIndex]}
               />
             )
           })}
@@ -408,7 +394,8 @@ const Proxies: React.FC = () => {
       onProxyDelay,
       onChangeProxy,
       groups,
-      proxyDisplayLayout
+      proxyDisplayLayout,
+      delaying
     ]
   )
 
