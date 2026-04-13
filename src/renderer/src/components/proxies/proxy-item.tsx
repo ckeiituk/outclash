@@ -15,6 +15,7 @@ interface Props {
   group: ControllerMixedGroup
   onSelect: (group: string, proxy: string) => void
   selected: boolean
+  testing?: boolean
 }
 
 function delayColorClass(delay: number): string {
@@ -26,7 +27,7 @@ function delayColorClass(delay: number): string {
 
 const ProxyItem: React.FC<Props> = (props) => {
   const { t } = useTranslation()
-  const { mutateProxies, proxyDisplayLayout, group, proxy, selected, onSelect, onProxyDelay } =
+  const { mutateProxies, proxyDisplayLayout, group, proxy, selected, onSelect, onProxyDelay, testing } =
     props
 
   const delay = useMemo(() => {
@@ -37,6 +38,7 @@ const ProxyItem: React.FC<Props> = (props) => {
   }, [proxy])
 
   const [loading, setLoading] = useState(false)
+  const isLoading = loading || !!testing
 
   function delayText(d: number): string {
     if (d === -1) return t('proxies.delayTest')
@@ -102,19 +104,19 @@ const ProxyItem: React.FC<Props> = (props) => {
                 <Button
                   variant="ghost"
                   title={proxy.type}
-                  disabled={loading}
+                  disabled={isLoading}
                   onClick={(e) => {
                     e.stopPropagation()
                     onDelay()
                   }}
                   className={cn(
-                    'h-7 px-1.5 text-xs font-medium whitespace-nowrap',
+                    'h-7 px-1.5 text-xs font-medium whitespace-nowrap transition-colors duration-300',
                     delayColorClass(delay)
                   )}
                 >
                   <span className="relative inline-flex items-center justify-center">
-                    {loading && <Spinner className="size-3 absolute" />}
-                    <span className={cn(loading && 'invisible')}>{delayText(delay)}</span>
+                    {isLoading && <Spinner className="size-3 absolute" />}
+                    <span className={cn(isLoading && 'invisible')}>{delayText(delay)}</span>
                   </span>
                 </Button>
               </div>
@@ -149,19 +151,19 @@ const ProxyItem: React.FC<Props> = (props) => {
                 <Button
                   variant="ghost"
                   title={proxy.type}
-                  disabled={loading}
+                  disabled={isLoading}
                   onClick={(e) => {
                     e.stopPropagation()
                     onDelay()
                   }}
                   className={cn(
-                    'h-7 px-1.5 text-xs font-medium whitespace-nowrap',
+                    'h-7 px-1.5 text-xs font-medium whitespace-nowrap transition-colors duration-300',
                     delayColorClass(delay)
                   )}
                 >
                   <span className="relative inline-flex items-center justify-center">
-                    {loading && <Spinner className="size-3 absolute" />}
-                    <span className={cn(loading && 'invisible')}>{delayText(delay)}</span>
+                    {isLoading && <Spinner className="size-3 absolute" />}
+                    <span className={cn(isLoading && 'invisible')}>{delayText(delay)}</span>
                   </span>
                 </Button>
               </div>
