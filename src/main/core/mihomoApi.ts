@@ -70,7 +70,7 @@ export const mihomoConfig = async (): Promise<ControllerConfigs> => {
   return await instance.get('/configs')
 }
 
-export const patchMihomoConfig = async (patch: Partial<ControllerConfigs>): Promise<void> => {
+export const patchMihomoConfig = async (patch: ControllerConfigPatch): Promise<void> => {
   const instance = await getAxios()
   return await instance.patch('/configs', patch)
 }

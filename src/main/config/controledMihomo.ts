@@ -1,7 +1,7 @@
 import { controledMihomoConfigPath } from '../utils/dirs'
 import { readFile, writeFile } from 'fs/promises'
 import { parseYaml, stringifyYaml } from '../utils/yaml'
-import { generateProfile } from '../core/factory'
+import { generateProfile, getRuntimeConfig } from '../core/factory'
 import { getAppConfig } from './app'
 import { defaultControledMihomoConfig } from '../utils/template'
 import { deepMerge } from '../utils/merge'
@@ -65,6 +65,12 @@ export async function patchControledMihomoConfig(patch: Partial<MihomoConfig>): 
   }
   controledMihomoConfig = deepMerge(controledMihomoConfig, patchToMerge)
   const { logLevel } = await generateProfile()
+  const tunConfigToApply =
+    patch.tun === undefined
+      ? undefined
+      : controlTun
+        ? controledMihomoConfig.tun
+        : (await getRuntimeConfig()).tun
   await writeFile(controledMihomoConfigPath(), stringifyYaml(controledMihomoConfig), 'utf-8')
 
   const currentTunEnabled = controledMihomoConfig.tun?.enable ?? false
@@ -78,13 +84,12 @@ export async function patchControledMihomoConfig(patch: Partial<MihomoConfig>): 
   }
 
   try {
-    // Mihomo's PATCH endpoint receives only the changed nested TUN fields.  That can
-    // leave the running TUN configuration inconsistent with the complete generated
-    // profile (in particular when `enable` is absent from the patch).  Reload the
-    // generated configuration as a whole whenever TUN is changed.
-    if (patch.tun !== undefined) {
-      const { mihomoHotReloadConfig } = await import('../core/mihomoApi')
-      await mihomoHotReloadConfig()
+    // Send the complete generated TUN configuration.  A partial nested PATCH can
+    // omit `enable` and other fields, while a whole-profile reload needlessly
+    // recreates the TUN adapter and interrupts active connections.
+    if (tunConfigToApply !== undefined) {
+      const { patchMihomoConfig } = await import('../core/mihomoApi')
+      await patchMihomoConfig({ tun: tunConfigToApply })
     } else {
       const { patchMihomoConfig, applyLogLevel } = await import('../core/mihomoApi')
       const { 'log-level': patchedLogLevel, ...rest } = patch as Partial<ControllerConfigs>

@@ -42,7 +42,11 @@ interface ControllerConfigs {
   'disable-keep-alive': boolean
 }
 
-interface ControllerTunDetail {
+type ControllerConfigPatch = Omit<Partial<ControllerConfigs>, 'tun'> & {
+  tun?: MihomoTunConfig
+}
+
+interface ControllerTunDetail extends MihomoTunConfig {
   enable: boolean
   device: string
   stack: TunStack
