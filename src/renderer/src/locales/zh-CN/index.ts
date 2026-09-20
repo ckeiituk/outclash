@@ -380,6 +380,8 @@ export default {
       icmpForwarding: 'ICMP 转发',
       dnsHijack: 'DNS 劫持，使用逗号分割多个值',
       excludeCustomNetworks: '排除自定义网段',
+      addDefaultNetworks: '添加默认网段',
+      addVivoxNetworks: '添加 Vivox 网段',
       exampleNetwork: '例: 172.20.0.0/16',
       onlyActiveInterface: '仅为活跃接口设置',
       onlyActiveInterfaceHelp: '开启后，系统代理仅会为当前活跃的网络接口设置，仅服务模式下生效'

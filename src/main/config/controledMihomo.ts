@@ -78,10 +78,19 @@ export async function patchControledMihomoConfig(patch: Partial<MihomoConfig>): 
   }
 
   try {
-    const { patchMihomoConfig, applyLogLevel } = await import('../core/mihomoApi')
-    const { 'log-level': patchedLogLevel, ...rest } = patch as Partial<ControllerConfigs>
-    if (Object.keys(rest).length) await patchMihomoConfig(rest)
-    if (patchedLogLevel !== undefined) await applyLogLevel(logLevel)
+    // Mihomo's PATCH endpoint receives only the changed nested TUN fields.  That can
+    // leave the running TUN configuration inconsistent with the complete generated
+    // profile (in particular when `enable` is absent from the patch).  Reload the
+    // generated configuration as a whole whenever TUN is changed.
+    if (patch.tun !== undefined) {
+      const { mihomoHotReloadConfig } = await import('../core/mihomoApi')
+      await mihomoHotReloadConfig()
+    } else {
+      const { patchMihomoConfig, applyLogLevel } = await import('../core/mihomoApi')
+      const { 'log-level': patchedLogLevel, ...rest } = patch as Partial<ControllerConfigs>
+      if (Object.keys(rest).length) await patchMihomoConfig(rest)
+      if (patchedLogLevel !== undefined) await applyLogLevel(logLevel)
+    }
   } catch {
     // running core may not be ready; changes will apply on next restart/reload
   }

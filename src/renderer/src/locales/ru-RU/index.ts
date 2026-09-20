@@ -311,6 +311,8 @@ export default {
       icmpForwarding: 'Пересылка ICMP',
       dnsHijack: 'Перехват DNS (несколько значений через запятую)',
       excludeCustomNetworks: 'Исключить пользовательские сети',
+      addDefaultNetworks: 'Добавить стандартные сети',
+      addVivoxNetworks: 'Добавить сети Vivox',
       exampleNetwork: 'напр.: 172.20.0.0/16',
       onlyActiveInterface: 'Только для активного интерфейса',
       onlyActiveInterfaceHelp:

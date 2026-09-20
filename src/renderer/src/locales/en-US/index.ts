@@ -309,6 +309,8 @@ export default {
       icmpForwarding: 'ICMP Forwarding',
       dnsHijack: 'DNS Hijack, separate multiple values with commas',
       excludeCustomNetworks: 'Exclude Custom Networks',
+      addDefaultNetworks: 'Add Default Networks',
+      addVivoxNetworks: 'Add Vivox Networks',
       exampleNetwork: 'e.g.: 172.20.0.0/16',
       onlyActiveInterface: 'Only for Active Interface',
       onlyActiveInterfaceHelp:
