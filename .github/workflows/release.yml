@@ -6,7 +6,8 @@ on:
       - '*.*.*'
 permissions: write-all
 env:
-  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' && secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_API_KEY_CONTENT != '' }}
+  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
+  MACOS_API_KEY_READY: ${{ secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_API_KEY_CONTENT != '' }}
 concurrency:
   group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -95,6 +96,12 @@ jobs:
           <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
           <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_aarch64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
 
+          ### macOS
+          These packages are unsigned when Apple signing credentials are unavailable.
+
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64.pkg">Apple Silicon (PKG)</a><br>
+          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64.pkg">Intel (PKG)</a>
+
           ### Windows
           #### Normal version (recommended)
           <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
@@ -161,24 +168,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      - name: Skip macOS build (signing secrets missing)
-        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
-        run: echo "::notice::Skipping macOS build — signing secrets not configured."
-
       - name: Install Node
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '22'
 
       - name: Install pnpm
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         uses: pnpm/action-setup@v5
         with:
           run_install: false
 
       - name: Install dependencies
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         env:
           SKIP_PREPARE: '1'
           npm_config_arch: ${{ matrix.arch }}
@@ -186,7 +186,6 @@ jobs:
         run: pnpm install
 
       - name: Download sidecar binaries
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         run: pnpm prepare --${{ matrix.arch }}
 
       - name: Install Build Tools (Linux pacman)
@@ -202,29 +201,29 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "VERSION=$v"
 
       - name: Get Version (Unix)
-        if: runner.os != 'Windows' && (matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true')
+        if: runner.os != 'Windows'
         shell: bash
         run: node -e "console.log('VERSION=' + require('./package.json').version)" >> "$GITHUB_ENV"
 
       - name: Create Apple API Key file
-        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true'
+        if: matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true'
         run: |
           mkdir -p ~/.appstoreconnect/private_keys
           echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
 
       - name: Build
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         env:
           NODE_OPTIONS: '--max_old_space_size=4096'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
-          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE || '') }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
-          CSC_NAME: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          APPLE_API_KEY_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_API_KEY || '' }}
-          APPLE_API_ISSUER: ${{ matrix.os == 'macos-latest' && secrets.APPLE_API_ISSUER || '' }}
-          APPLE_API_KEY: ${{ matrix.os == 'macos-latest' && format('~/.appstoreconnect/private_keys/AuthKey_{0}.p8', secrets.APPLE_API_KEY) || '' }}
+          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true' && secrets.APPLE_CERTIFICATE || '') }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
+          CSC_NAME: ${{ matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true' && 'false' || '' }}
+          APPLE_API_KEY_ID: ${{ matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_ISSUER: ${{ matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_API_KEY: ${{ matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true' && format('~/.appstoreconnect/private_keys/AuthKey_{0}.p8', secrets.APPLE_API_KEY) || '' }}
         shell: bash
         run: |
           npx electron-vite build
@@ -246,12 +245,10 @@ jobs:
           }
 
       - name: Generate latest.yml
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         shell: bash
         run: SKIP_CHANGELOG=1 pnpm updater
 
       - name: Upload Release
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION }}
