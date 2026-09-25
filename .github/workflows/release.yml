@@ -7,7 +7,6 @@ on:
 permissions: write-all
 env:
   MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
-  MACOS_API_KEY_READY: ${{ secrets.APPLE_API_KEY != '' && secrets.APPLE_API_ISSUER != '' && secrets.APPLE_API_KEY_CONTENT != '' }}
 concurrency:
   group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -205,25 +204,16 @@ jobs:
         shell: bash
         run: node -e "console.log('VERSION=' + require('./package.json').version)" >> "$GITHUB_ENV"
 
-      - name: Create Apple API Key file
-        if: matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true'
-        run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
-
       - name: Build
+        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
         env:
           NODE_OPTIONS: '--max_old_space_size=4096'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
-          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true' && secrets.APPLE_CERTIFICATE || '') }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
-          CSC_NAME: ${{ matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY == 'true' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true' && 'false' || '' }}
-          APPLE_API_KEY_ID: ${{ matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true' && secrets.APPLE_API_KEY || '' }}
-          APPLE_API_ISSUER: ${{ matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true' && secrets.APPLE_API_ISSUER || '' }}
-          APPLE_API_KEY: ${{ matrix.os == 'macos-latest' && env.MACOS_API_KEY_READY == 'true' && format('~/.appstoreconnect/private_keys/AuthKey_{0}.p8', secrets.APPLE_API_KEY) || '' }}
+          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE || '') }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
+          CSC_NAME: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
         shell: bash
         run: |
           npx electron-vite build
@@ -234,6 +224,19 @@ jobs:
           else
             npx electron-builder --publish never --mac ${{ matrix.targets }} --${{ matrix.arch }}
           fi
+
+      - name: Build (macOS, unsigned)
+        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          npm_config_arch: ${{ matrix.arch }}
+          npm_config_target_arch: ${{ matrix.arch }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        shell: bash
+        run: |
+          npx electron-vite build
+          npx electron-builder --publish never --mac ${{ matrix.targets }} --${{ matrix.arch }}
 
       - name: Add Portable Flag
         if: matrix.os == 'windows-latest' && matrix.targets == '7z'
