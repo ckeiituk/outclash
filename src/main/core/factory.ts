@@ -5,24 +5,106 @@ import {
   getProfileStr,
   getAppConfig
 } from '../config'
-import { mihomoProfileWorkDir, mihomoWorkConfigPath, mihomoWorkDir, rulePath } from '../utils/dirs'
+import { mihomoProfileWorkDir, mihomoWorkConfigPath, rulePath } from '../utils/dirs'
 import { parseYaml, stringifyYaml } from '../utils/yaml'
-import { copyFile, mkdir, readFile, writeFile } from 'fs/promises'
+import { mkdir, readFile, writeFile } from 'fs/promises'
 import { deepMerge } from '../utils/merge'
+import { defaultControledMihomoConfig } from '../utils/template'
+import { linkGeoFiles } from '../utils/geo'
 import { existsSync } from 'fs'
-import path from 'path'
 
 let runtimeConfigStr: string,
   rawProfileStr: string,
   currentProfileStr: string,
-  runtimeConfig: MihomoConfig
+  runtimeConfig: MihomoConfig,
+  lastMixedPort: number | undefined
 
 const LOG_LEVELS: readonly LogLevel[] = ['silent', 'error', 'warning', 'info', 'debug']
 
 const STDOUT_PARSEABLE_LOG_LEVELS: readonly LogLevel[] = ['info', 'debug']
 
+export const PORT_KEYS: readonly MihomoPortKey[] = [
+  'port',
+  'socks-port',
+  'redir-port',
+  'tproxy-port',
+  'mixed-port'
+]
+
 function isLogLevel(value: unknown): value is LogLevel {
-  return LOG_LEVELS.includes(value as LogLevel)
+  return LOG_LEVELS.some((level: LogLevel) => level === value)
+}
+
+function isPort(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535
+}
+
+// A port declared by the profile wins, unless the user has set that port in the app settings
+function resolvePorts(
+  profile: Partial<MihomoConfig>,
+  controledMihomoConfig: Partial<MihomoConfig>,
+  customPorts: MihomoPortKey[]
+): Record<MihomoPortKey, MihomoPortInfo> {
+  const ports = {} as Record<MihomoPortKey, MihomoPortInfo>
+  for (const key of PORT_KEYS) {
+    const declared = profile[key]
+    const profileValue = isPort(declared) ? declared : undefined
+    const fromProfile = profileValue !== undefined && !customPorts.includes(key)
+    ports[key] = {
+      value: fromProfile
+        ? profileValue
+        : (controledMihomoConfig[key] ?? defaultControledMihomoConfig[key] ?? 0),
+      profileValue,
+      fromProfile
+    }
+  }
+  return ports
+}
+
+// Tray and settings must remain available when the saved profile cannot be parsed.
+// generateProfile still reads it directly so starting the core reports the real error.
+async function getProfileForSettings(): Promise<Partial<MihomoConfig>> {
+  const { current } = await getProfileConfig()
+  try {
+    return await getProfile(current)
+  } catch {
+    return {}
+  }
+}
+
+export async function getEffectivePorts(): Promise<Record<MihomoPortKey, MihomoPortInfo>> {
+  const { customPorts = [] } = await getAppConfig()
+  return resolvePorts(await getProfileForSettings(), await getControledMihomoConfig(), customPorts)
+}
+
+export async function getMixedPort(): Promise<number> {
+  return (await getEffectivePorts())['mixed-port'].value
+}
+
+// Like the ports, a log level declared by the profile wins unless the user has set one in the app settings
+function resolveLogLevel(
+  profile: Partial<MihomoConfig>,
+  controledMihomoConfig: Partial<MihomoConfig>,
+  customLogLevel: boolean
+): MihomoLogLevelInfo {
+  const declared = profile['log-level']
+  const profileValue = isLogLevel(declared) ? declared : undefined
+  const fromProfile = profileValue !== undefined && !customLogLevel
+  const controled = controledMihomoConfig['log-level']
+  return {
+    value: fromProfile ? profileValue : isLogLevel(controled) ? controled : 'info',
+    profileValue,
+    fromProfile
+  }
+}
+
+export async function getEffectiveLogLevel(): Promise<MihomoLogLevelInfo> {
+  const { customLogLevel = false } = await getAppConfig()
+  return resolveLogLevel(
+    await getProfileForSettings(),
+    await getControledMihomoConfig(),
+    customLogLevel
+  )
 }
 
 // 辅助函数：处理带偏移量的规则
@@ -63,7 +145,9 @@ export async function generateProfile(): Promise<{ logLevel: LogLevel }> {
     diffWorkDir = false,
     controlDns = true,
     controlSniff = true,
-    controlTun = false
+    controlTun = false,
+    customPorts = [],
+    customLogLevel = false
   } = appConfig
   const proxyModeEnabled = appConfig.proxyMode ?? false
   const sysProxyEnabled = appConfig.sysProxy?.enable ?? false
@@ -73,8 +157,11 @@ export async function generateProfile(): Promise<{ logLevel: LogLevel }> {
   const controledMihomoConfig = await getControledMihomoConfig()
 
   const configToMerge = JSON.parse(JSON.stringify(controledMihomoConfig))
-  if (isLogLevel(currentProfile['log-level'])) {
-    delete configToMerge['log-level']
+  const logLevel = resolveLogLevel(currentProfile, controledMihomoConfig, customLogLevel)
+  if (logLevel.fromProfile) delete configToMerge['log-level']
+  const ports = resolvePorts(currentProfile, controledMihomoConfig, customPorts)
+  for (const key of PORT_KEYS) {
+    if (ports[key].fromProfile) delete configToMerge[key]
   }
   if (!controlDns && currentProfile.dns) {
     delete configToMerge.dns
@@ -143,7 +230,6 @@ export async function generateProfile(): Promise<{ logLevel: LogLevel }> {
   }
 
   const profile = deepMerge(JSON.parse(JSON.stringify(currentProfile)), configToMerge)
-  const logLevel = isLogLevel(profile['log-level']) ? profile['log-level'] : 'info'
 
   const tunEnabled = profile.tun?.enable ?? false
   if (!tunEnabled && !sysProxyEnabled && !proxyModeEnabled) {
@@ -165,7 +251,19 @@ export async function generateProfile(): Promise<{ logLevel: LogLevel }> {
     diffWorkDir ? mihomoWorkConfigPath(current) : mihomoWorkConfigPath('work'),
     runtimeConfigStr
   )
-  return { logLevel }
+
+  // The mixed port can follow the profile, so switching profiles may move it
+  const previousMixedPort = lastMixedPort
+  lastMixedPort = ports['mixed-port'].value
+  if (
+    previousMixedPort !== undefined &&
+    previousMixedPort !== lastMixedPort &&
+    appConfig.sysProxy?.enable
+  ) {
+    const { triggerSysProxy } = await import('../sys/sysproxy')
+    await triggerSysProxy(true, appConfig.onlyActiveDevice ?? false).catch(() => {})
+  }
+  return { logLevel: logLevel.value }
 }
 
 async function cleanProfile(
@@ -406,20 +504,7 @@ async function prepareProfileWorkDir(current: string | undefined): Promise<void>
   if (!existsSync(mihomoProfileWorkDir(current))) {
     await mkdir(mihomoProfileWorkDir(current), { recursive: true })
   }
-  const copy = async (file: string): Promise<void> => {
-    const targetPath = path.join(mihomoProfileWorkDir(current), file)
-    const sourcePath = path.join(mihomoWorkDir(), file)
-    if (!existsSync(targetPath) && existsSync(sourcePath)) {
-      await copyFile(sourcePath, targetPath)
-    }
-  }
-  await Promise.all([
-    copy('country.mmdb'),
-    copy('geoip.metadb'),
-    copy('geoip.dat'),
-    copy('geosite.dat'),
-    copy('ASN.mmdb')
-  ])
+  await linkGeoFiles(mihomoProfileWorkDir(current))
 }
 
 export async function getRuntimeConfigStr(): Promise<string> {

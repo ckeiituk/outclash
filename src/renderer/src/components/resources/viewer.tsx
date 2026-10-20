@@ -14,6 +14,9 @@ import yaml from 'js-yaml'
 import { t } from 'i18next'
 type Language = 'yaml' | 'javascript' | 'css' | 'json' | 'text'
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 interface Props {
   onClose: () => void
   path: string
@@ -65,9 +68,10 @@ const Viewer: React.FC<Props> = (props) => {
         }
         try {
           const parsedYaml = yaml.load(fileContent)
-          if (parsedYaml && typeof parsedYaml === 'object') {
-            const yamlObj = parsedYaml as Record<string, unknown>
-            const payload = yamlObj[privderType]?.[title]?.payload
+          if (isRecord(parsedYaml)) {
+            const providers = parsedYaml[privderType]
+            const targetObj = isRecord(providers) ? providers[title] : undefined
+            const payload = isRecord(targetObj) ? targetObj.payload : undefined
             if (payload) {
               if (privderType === 'proxy-providers') {
                 setCurrData(
@@ -83,7 +87,6 @@ const Viewer: React.FC<Props> = (props) => {
                 )
               }
             } else {
-              const targetObj = yamlObj[privderType]?.[title]
               if (targetObj) {
                 setCurrData(yaml.dump(targetObj))
               } else {

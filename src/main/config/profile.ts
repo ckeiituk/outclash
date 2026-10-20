@@ -7,9 +7,10 @@ import {
   rulePath
 } from '../utils/dirs'
 import { mkdir, readFile, rm, writeFile } from 'fs/promises'
-import { restartCore } from '../core/manager'
+import { restartCoreUntilUp, waitForCoreStart } from '../core/manager'
 import { generateProfile, getRuntimeConfig } from '../core/factory'
-import { ConfigInvalidError, mihomoHotReloadConfig, patchMihomoConfig } from '../core/mihomoApi'
+import { isConfigRejection, mihomoHotReloadConfig } from '../core/mihomoApi'
+import { getCoreState } from '../core/status'
 import { getAppConfig, patchAppConfig } from './app'
 import { getControledMihomoConfig, patchControledMihomoConfig } from './controledMihomo'
 import { ipcMain } from 'electron'
@@ -28,6 +29,15 @@ import { downloadCustomCss } from '../resolve/theme'
 
 let profileConfig: ProfileConfig // profile.yaml
 
+// Profile operations change the shared config across several awaits, so they run one at a time
+let profileQueue: Promise<unknown> = Promise.resolve()
+
+function withProfileLock<T>(task: () => Promise<T>): Promise<T> {
+  const run = profileQueue.then(task)
+  profileQueue = run.catch(() => {})
+  return run
+}
+
 export async function getProfileConfig(force = false): Promise<ProfileConfig> {
   if (force || !profileConfig) {
     const data = await readFile(profileConfigPath(), 'utf-8')
@@ -38,6 +48,10 @@ export async function getProfileConfig(force = false): Promise<ProfileConfig> {
 }
 
 export async function setProfileConfig(config: ProfileConfig): Promise<void> {
+  await withProfileLock(() => saveProfileConfig(config))
+}
+
+async function saveProfileConfig(config: ProfileConfig): Promise<void> {
   profileConfig = config
   await writeFile(profileConfigPath(), stringifyYaml(config), 'utf-8')
 }
@@ -50,19 +64,22 @@ export async function getProfileItem(id: string | undefined): Promise<ProfileIte
 }
 
 export async function changeCurrentProfile(id: string): Promise<void> {
+  await withProfileLock(() => switchCurrentProfile(id))
+}
+
+async function switchCurrentProfile(id: string): Promise<void> {
   const config = await getProfileConfig()
-  const current = config.current
+  const previous = config.current
   config.current = id
-  await setProfileConfig(config)
+  await saveProfileConfig(config)
   try {
-    const { useHotReloadProfile = true } = await getAppConfig()
-    if (useHotReloadProfile) {
-      await reloadCurrentProfile(id)
-    } else {
-      await restartCore()
-    }
+    await applyCurrentProfile()
   } catch (e) {
-    config.current = current
+    // The core kept the previous profile; restore it unless something switched away meanwhile
+    if (config.current === id) {
+      config.current = previous
+      await saveProfileConfig(config)
+    }
     // The failed apply already regenerated the runtime config and factory
     // caches for the new profile — re-sync them with the reverted current.
     try {
@@ -73,8 +90,6 @@ export async function changeCurrentProfile(id: string): Promise<void> {
       )
     }
     throw e
-  } finally {
-    await setProfileConfig(config)
   }
   await enforceGlobalModeRestriction(id)
   await applyProfileExpandProxyGroups(id)
@@ -83,14 +98,37 @@ export async function changeCurrentProfile(id: string): Promise<void> {
   mainWindow?.webContents.send('appConfigUpdated')
 }
 
+// A stopped core loads the selected profile on its next start.
+async function applyCurrentProfile(): Promise<void> {
+  await waitForCoreStart()
+  const { status } = getCoreState()
+  // Subscription repair can recover a failed start; an explicit stop stays stopped.
+  if (status === 'error') {
+    await restartCoreUntilUp()
+    return
+  }
+  if (status !== 'running') return
+  const { useHotReloadProfile = true } = await getAppConfig()
+  if (useHotReloadProfile) {
+    const { current } = await getProfileConfig()
+    await reloadCurrentProfileOrRestart(current ?? 'default')
+    return
+  }
+  await restartCoreUntilUp()
+}
+
 export async function updateProfileItem(item: ProfileItem): Promise<void> {
+  await withProfileLock(() => replaceProfileItem(item))
+}
+
+async function replaceProfileItem(item: ProfileItem): Promise<void> {
   const config = await getProfileConfig()
   const index = (config.items ?? []).findIndex((i) => i.id === item.id)
   if (index === -1) {
     throw new Error('Profile not found')
   }
   config.items[index] = item
-  await setProfileConfig(config)
+  await saveProfileConfig(config)
 }
 
 export async function addProfileItem(item: Partial<ProfileItem>): Promise<void> {
@@ -103,24 +141,32 @@ export async function addProfileItem(item: Partial<ProfileItem>): Promise<void> 
       throw new Error(t('error.duplicateProfile'))
     }
   }
-  const newItem = await createProfile(item)
-  const config = await getProfileConfig()
-  const isExisting = !!(await getProfileItem(newItem.id))
-  if (isExisting) {
-    await updateProfileItem(newItem)
-  } else {
-    if (!config.items) config.items = []
-    config.items.push(newItem)
-    await setProfileConfig(config)
-  }
+  const { item: newItem, hwidLimitSupportUrl } = await createProfile(item)
+  // The download above stays outside the lock, it can take long and changes nothing shared
+  await withProfileLock(async () => {
+    const config = await getProfileConfig()
+    const isExisting = !!(await getProfileItem(newItem.id))
+    if (isExisting) {
+      await replaceProfileItem(newItem)
+    } else {
+      if (!config.items) config.items = []
+      config.items.push(newItem)
+      await saveProfileConfig(config)
+    }
 
-  if (!isExisting || !config.current) {
-    await changeCurrentProfile(newItem.id)
-  } else if (config.current === newItem.id) {
-    await enforceGlobalModeRestriction(newItem.id)
-    await applyProfileExpandProxyGroups(newItem.id)
-    await patchAppConfig({ customTheme: newItem.customCss || 'default.css' })
-    mainWindow?.webContents.send('appConfigUpdated')
+    if (!isExisting || !config.current) {
+      await switchCurrentProfile(newItem.id)
+    } else if (config.current === newItem.id) {
+      await enforceGlobalModeRestriction(newItem.id)
+      await applyProfileExpandProxyGroups(newItem.id)
+      await patchAppConfig({ customTheme: newItem.customCss || 'default.css' })
+      mainWindow?.webContents.send('appConfigUpdated')
+    }
+  })
+
+  // The profile is already saved at this point, the error only reports the limit to the user
+  if (hwidLimitSupportUrl !== undefined) {
+    throw new Error(`HWID_LIMIT:${hwidLimitSupportUrl}`)
   }
 }
 
@@ -139,8 +185,8 @@ async function enforceGlobalModeRestriction(id: string): Promise<void> {
   if (profile?.globalMode === false) {
     const { mode } = await getControledMihomoConfig()
     if (mode === 'global') {
+      // Also patches the running core, if there is one
       await patchControledMihomoConfig({ mode: 'rule' })
-      await patchMihomoConfig({ mode: 'rule' })
       mainWindow?.webContents.send('controledMihomoConfigUpdated')
       mainWindow?.webContents.send('groupsUpdated')
       ipcMain.emit('updateTrayMenu')
@@ -149,32 +195,29 @@ async function enforceGlobalModeRestriction(id: string): Promise<void> {
 }
 
 export async function removeProfileItem(id: string): Promise<void> {
-  const config = await getProfileConfig()
-  config.items = config.items?.filter((item) => item.id !== id)
-  let shouldRestart = false
-  if (config.current === id) {
-    shouldRestart = true
-    if (config.items && config.items.length > 0) {
-      config.current = config.items[0].id
-    } else {
-      config.current = undefined
+  await withProfileLock(async () => {
+    const config = await getProfileConfig()
+    config.items = config.items?.filter((item) => item.id !== id)
+    let shouldRestart = false
+    if (config.current === id) {
+      shouldRestart = true
+      if (config.items && config.items.length > 0) {
+        config.current = config.items[0].id
+      } else {
+        config.current = undefined
+      }
     }
-  }
-  await setProfileConfig(config)
-  if (existsSync(profilePath(id))) {
-    await rm(profilePath(id))
-  }
-  if (shouldRestart) {
-    const { useHotReloadProfile = true } = await getAppConfig()
-    if (useHotReloadProfile) {
-      await reloadCurrentProfileOrRestart(config.current ?? 'default')
-    } else {
-      await restartCore()
+    await saveProfileConfig(config)
+    if (existsSync(profilePath(id))) {
+      await rm(profilePath(id))
     }
-  }
-  if (existsSync(mihomoProfileWorkDir(id))) {
-    await rm(mihomoProfileWorkDir(id), { recursive: true })
-  }
+    if (shouldRestart) {
+      await applyCurrentProfile()
+    }
+    if (existsSync(mihomoProfileWorkDir(id))) {
+      await rm(mihomoProfileWorkDir(id), { recursive: true })
+    }
+  })
 }
 
 export async function getCurrentProfileItem(): Promise<ProfileItem> {
@@ -208,8 +251,13 @@ async function downloadLogoAsBase64(
   }
 }
 
-export async function createProfile(item: Partial<ProfileItem>): Promise<ProfileItem> {
+// `hwidLimitSupportUrl` is set (possibly to '') when the server reported that this device is over the
+// HWID limit while updating an existing subscription; the profile is still updated in that case.
+export async function createProfile(
+  item: Partial<ProfileItem>
+): Promise<{ item: ProfileItem; hwidLimitSupportUrl?: string }> {
   const id = item.id || new Date().getTime().toString(16)
+  let hwidLimitSupportUrl: string | undefined
   const newItem = {
     id,
     name: item.name || (item.type === 'remote' ? 'Remote File' : 'Local File'),
@@ -264,12 +312,8 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
         throw error
       }
 
-      const data = res.data
+      let data: string = res.data
       const headers = res.headers
-      const contentType = String(headers['content-type'] ?? '').toLowerCase()
-      if (contentType.includes('text/html') || contentType.includes('text/xml')) {
-        throw new Error(t('error.subscriptionFormatError'))
-      }
       const hwidLimitKey = Object.keys(headers).find((k) =>
         k.toLowerCase().endsWith('x-hwid-limit')
       )
@@ -283,8 +327,18 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
         const hwidSupportKey = Object.keys(headers).find((k) =>
           k.toLowerCase().endsWith('support-url')
         )
-        const hwidSupportUrl = hwidSupportKey ? headers[hwidSupportKey] : ''
-        throw new Error(`HWID_LIMIT:${hwidSupportUrl}`)
+        hwidLimitSupportUrl = hwidSupportKey ? headers[hwidSupportKey] : ''
+        // A new subscription over the limit is not added at all
+        if (!(await getProfileItem(id))) {
+          throw new Error(`HWID_LIMIT:${hwidLimitSupportUrl}`)
+        }
+      }
+      const contentType = String(headers['content-type'] ?? '').toLowerCase()
+      if (
+        hwidLimitSupportUrl === undefined &&
+        (contentType.includes('text/html') || contentType.includes('text/xml'))
+      ) {
+        throw new Error(t('error.subscriptionFormatError'))
       }
       const profileTitleKey = Object.keys(headers).find((k) =>
         k.toLowerCase().endsWith('profile-title')
@@ -417,30 +471,16 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
           }
         }
       }
-      if (newItem.verify) {
-        let parsed: MihomoConfig
+      if (hwidLimitSupportUrl !== undefined) {
+        // Over the limit the server's response still replaces the stored config, otherwise the
+        // previously downloaded one keeps working. A body that is not a config is stored as empty.
         try {
-          parsed = parseYaml<MihomoConfig>(data)
-        } catch (error) {
-          throw new Error(t('error.subscriptionFormatError') + '\n' + (error as Error).message)
+          verifyProfileStr(data)
+        } catch {
+          data = ''
         }
-        if (
-          typeof parsed !== 'object' ||
-          parsed === null ||
-          Array.isArray(parsed) ||
-          !(
-            'proxies' in parsed ||
-            'proxy-providers' in parsed ||
-            'proxy-groups' in parsed ||
-            'rules' in parsed ||
-            'rule-providers' in parsed ||
-            'dns' in parsed ||
-            'tun' in parsed ||
-            'mixed-port' in parsed
-          )
-        ) {
-          throw new Error(t('error.subscriptionFormatError'))
-        }
+      } else if (newItem.verify) {
+        verifyProfileStr(data)
       }
       await setProfileStr(id, data)
       break
@@ -451,7 +491,33 @@ export async function createProfile(item: Partial<ProfileItem>): Promise<Profile
       break
     }
   }
-  return newItem
+  return { item: newItem, hwidLimitSupportUrl }
+}
+
+function verifyProfileStr(data: string): void {
+  let parsed: MihomoConfig
+  try {
+    parsed = parseYaml<MihomoConfig>(data)
+  } catch (error) {
+    throw new Error(t('error.subscriptionFormatError') + '\n' + (error as Error).message)
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    !(
+      'proxies' in parsed ||
+      'proxy-providers' in parsed ||
+      'proxy-groups' in parsed ||
+      'rules' in parsed ||
+      'rule-providers' in parsed ||
+      'dns' in parsed ||
+      'tun' in parsed ||
+      'mixed-port' in parsed
+    )
+  ) {
+    throw new Error(t('error.subscriptionFormatError'))
+  }
 }
 
 export async function getProfileStr(id: string | undefined): Promise<string> {
@@ -497,7 +563,7 @@ async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
     await mihomoHotReloadConfig()
     await appendProfileReloadLog(`reload success for profile ${id}`)
   } catch (error) {
-    if (error instanceof ConfigInvalidError) {
+    if (isConfigRejection(error)) {
       // The core rejected the config and keeps serving the old one —
       // restarting would only tear down a healthy core.
       await appendProfileReloadLog(
@@ -508,7 +574,7 @@ async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
     await appendProfileReloadLog(
       `reload failed for profile ${id}, fallback restart: ${formatProfileReloadError(error)}`
     )
-    await restartCore()
+    await restartCoreUntilUp()
     try {
       const { mihomoVersion } = await import('../core/mihomoApi')
       await mihomoVersion()
@@ -519,19 +585,6 @@ async function reloadCurrentProfileOrRestart(id: string): Promise<void> {
       )
       throw restartError
     }
-  }
-}
-
-async function reloadCurrentProfile(id: string): Promise<void> {
-  await appendProfileReloadLog(`reload start for profile ${id}`)
-  try {
-    await mihomoHotReloadConfig()
-    await appendProfileReloadLog(`reload success for profile ${id}`)
-  } catch (error) {
-    await appendProfileReloadLog(
-      `reload failed for profile ${id}: ${formatProfileReloadError(error)}`
-    )
-    throw error
   }
 }
 
@@ -564,11 +617,11 @@ async function revertProfileApply(
       `revert regenerate failed for profile ${id}: ${formatProfileReloadError(regenError)}`
     )
   }
-  if (!(applyError instanceof ConfigInvalidError)) {
+  if (!isConfigRejection(applyError)) {
     // Transport failure: the core may be down. One attempt with the
     // restored, previously working config.
     try {
-      await restartCore()
+      await restartCoreUntilUp()
       await appendProfileReloadLog(`revert restart success for profile ${id}`)
     } catch (restartError) {
       await appendProfileReloadLog(
@@ -579,6 +632,10 @@ async function revertProfileApply(
 }
 
 export async function setProfileStr(id: string, content: string): Promise<void> {
+  await withProfileLock(() => saveProfileStr(id, content))
+}
+
+async function saveProfileStr(id: string, content: string): Promise<void> {
   const { current } = await getProfileConfig()
   const previousContent = existsSync(profilePath(id))
     ? await readFile(profilePath(id), 'utf-8')
@@ -586,12 +643,7 @@ export async function setProfileStr(id: string, content: string): Promise<void> 
   await writeFile(profilePath(id), content, 'utf-8')
   if (current === id) {
     try {
-      const { useHotReloadProfile = true } = await getAppConfig()
-      if (useHotReloadProfile) {
-        await reloadCurrentProfileOrRestart(id)
-        return
-      }
-      await restartCore()
+      await applyCurrentProfile()
     } catch (error) {
       await revertProfileApply(id, previousContent, error)
       const reason = error instanceof Error ? error.message : String(error)
@@ -603,7 +655,8 @@ export async function setProfileStr(id: string, content: string): Promise<void> 
 export async function getProfile(id: string | undefined): Promise<MihomoConfig> {
   const profile = await getProfileStr(id)
   let result = parseYaml<MihomoConfig>(profile)
-  if (typeof result !== 'object') result = {} as MihomoConfig
+  if (typeof result !== 'object' || result === null || Array.isArray(result))
+    result = {} as MihomoConfig
   return result
 }
 

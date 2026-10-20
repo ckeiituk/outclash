@@ -130,9 +130,8 @@ const zhCN: LocaleTranslations = {
     profileReverted: '更改已回滚',
     profileCheckFailed: '配置检查失败',
     invalidEncryptionFormat: '无效的加密格式',
-    systemCorePathInvalid: '系统内核路径无效或不存在',
-    systemCorePathNotSet: '系统内核路径未设置',
     corePathError: '内核路径错误',
+    alphaCoreNotSupported: '当前平台不支持预览版内核',
     windowsElevationFailed: 'Windows 提权执行失败',
     linuxElevationFailed: 'Linux 提权执行失败',
     macosElevationFailed: 'macOS 提权执行失败',
@@ -147,7 +146,8 @@ const zhCN: LocaleTranslations = {
     userCancelledDownload: '用户取消下载',
     scriptReturnMustBeObject: '脚本返回值必须是对象',
     noLogsUploadUrl: '未配置日志上传地址',
-    noLogFilesSelected: '未选择日志文件'
+    noLogFilesSelected: '未选择日志文件',
+    coreUnreachable: '内核无响应，可能未在运行'
   },
   ui: {
     defaultTheme: '默认',
@@ -276,9 +276,8 @@ const enUS: LocaleTranslations = {
     profileReverted: 'The change was reverted',
     profileCheckFailed: 'Profile check failed',
     invalidEncryptionFormat: 'Invalid encryption format',
-    systemCorePathInvalid: 'System core path is invalid or does not exist',
-    systemCorePathNotSet: 'System core path not configured',
     corePathError: 'Core path error',
+    alphaCoreNotSupported: 'The preview core is not available for this platform',
     windowsElevationFailed: 'Windows elevation failed',
     linuxElevationFailed: 'Linux elevation failed',
     macosElevationFailed: 'macOS elevation failed',
@@ -293,7 +292,8 @@ const enUS: LocaleTranslations = {
     userCancelledDownload: 'User cancelled download',
     scriptReturnMustBeObject: 'Script return value must be an object',
     noLogsUploadUrl: 'No logs upload URL configured',
-    noLogFilesSelected: 'No log files selected'
+    noLogFilesSelected: 'No log files selected',
+    coreUnreachable: 'The core is not responding, it may not be running'
   },
   ui: {
     defaultTheme: 'Default',
@@ -423,9 +423,8 @@ const ruRU: LocaleTranslations = {
     profileReverted: 'Изменения отменены',
     profileCheckFailed: 'Проверка конфигурации не пройдена',
     invalidEncryptionFormat: 'Недопустимый формат шифрования',
-    systemCorePathInvalid: 'Путь к системному ядру некорректен или не существует',
-    systemCorePathNotSet: 'Путь к системному ядру не задан',
     corePathError: 'Ошибка пути к ядру',
+    alphaCoreNotSupported: 'Предварительное ядро недоступно для этой платформы',
     windowsElevationFailed: 'Ошибка повышения привилегий Windows',
     linuxElevationFailed: 'Ошибка повышения привилегий Linux',
     macosElevationFailed: 'Ошибка повышения привилегий macOS',
@@ -440,7 +439,8 @@ const ruRU: LocaleTranslations = {
     userCancelledDownload: 'Пользователь отменил загрузку',
     scriptReturnMustBeObject: 'Возвращаемое значение скрипта должно быть объектом',
     noLogsUploadUrl: 'URL для отправки логов не настроен',
-    noLogFilesSelected: 'Не выбраны файлы логов'
+    noLogFilesSelected: 'Не выбраны файлы логов',
+    coreUnreachable: 'Ядро не отвечает, возможно, оно не запущено'
   },
   ui: {
     defaultTheme: 'По умолчанию',

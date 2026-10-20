@@ -88,6 +88,10 @@ export async function mihomoHotReloadConfig(): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('mihomoHotReloadConfig'))
 }
 
+export async function mihomoApplyLogLevel(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('mihomoApplyLogLevel'))
+}
+
 export async function mihomoProxyDelay(
   proxy: string,
   url?: string,
@@ -217,6 +221,10 @@ export async function restartCore(): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('restartCore'))
 }
 
+export async function getCoreState(): Promise<CoreState> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('getCoreState'))
+}
+
 export async function restartMihomoConnections(): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('restartMihomoConnections'))
 }
@@ -297,8 +305,12 @@ export async function stopService(): Promise<void> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('stopService'))
 }
 
-export async function findSystemMihomo(): Promise<string[]> {
-  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('findSystemMihomo'))
+export async function installedCores(): Promise<AppConfig['core'][]> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('installedCores'))
+}
+
+export async function downloadAlphaCore(): Promise<void> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('downloadAlphaCore'))
 }
 
 export async function getFilePath(ext: string[]): Promise<string[] | undefined> {
@@ -323,6 +335,14 @@ export async function getCurrentProfileStr(): Promise<string> {
 
 export async function getRuntimeConfig(): Promise<MihomoConfig> {
   return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('getRuntimeConfig'))
+}
+
+export async function getEffectivePorts(): Promise<Record<MihomoPortKey, MihomoPortInfo>> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('getEffectivePorts'))
+}
+
+export async function getEffectiveLogLevel(): Promise<MihomoLogLevelInfo> {
+  return ipcErrorWrapper(await window.electron.ipcRenderer.invoke('getEffectiveLogLevel'))
 }
 
 export async function checkUpdate(): Promise<AppVersion | undefined> {

@@ -1,6 +1,7 @@
 import { ChildProcess, execFile, execFileSync, spawn } from 'child_process'
 import {
   dataDir,
+  installedCores,
   logPath,
   mihomoCorePath,
   mihomoIpcPath,
@@ -9,7 +10,7 @@ import {
   mihomoWorkConfigPath,
   mihomoWorkDir
 } from '../utils/dirs'
-import { generateProfile, getRuntimeConfig } from './factory'
+import { generateProfile, getEffectiveLogLevel, getRuntimeConfig } from './factory'
 import {
   getAppConfig,
   getControledMihomoConfig,
@@ -35,13 +36,27 @@ import { promisify } from 'util'
 import { mainWindow, showError } from '..'
 import path from 'path'
 import os from 'os'
-import { createWriteStream, existsSync } from 'fs'
+import { existsSync } from 'fs'
 import { disableSysProxy, triggerSysProxy } from '../sys/sysproxy'
 import { getAxios } from './mihomoApi'
 import { setSysDns } from '../service/api'
 import { t } from '../utils/i18n'
+import { RotatingLog } from '../utils/logs'
+import { CoreError, getCoreState, reportCoreError, setCoreStatus } from './status'
 
 const ctlParam = process.platform === 'win32' ? '-ext-ctl-pipe' : '-ext-ctl-unix'
+
+// Shared by stdout, stderr and every restart, so one place tracks the size of the current file
+const coreLog = new RotatingLog()
+
+// Lines of core output attached to a crash report
+const CORE_OUTPUT_TAIL = 20
+
+// Spawn failures (ENOENT, EACCES, UNKNOWN...) mean the binary itself is gone or blocked
+function isSpawnFailure(error: unknown): error is NodeJS.ErrnoException {
+  const { code, syscall } = (error ?? {}) as NodeJS.ErrnoException
+  return typeof code === 'string' && !!syscall?.startsWith('spawn')
+}
 
 class UserCancelledError extends Error {
   constructor(message = t('tray.userCancelled')) {
@@ -72,6 +87,9 @@ let networkDownHandled = false
 let child: ChildProcess
 let retry = 10
 
+// The (re)start in flight, settled once its controller is up or the start has failed
+let coreStarting: Promise<unknown> | null = null
+
 let initialized = false
 let providerNames = new Set<string>()
 let unmatchedProviders = new Set<string>()
@@ -89,7 +107,39 @@ export async function resetProviderTracking(): Promise<void> {
   initialized = false
 }
 
-export async function startCore(detached = false): Promise<Promise<void>[]> {
+function trackCoreStart<T>(starting: Promise<T>): Promise<T> {
+  coreStarting = starting
+  const settle = (): void => {
+    if (coreStarting === starting) coreStarting = null
+  }
+  starting.then(settle, settle)
+  return starting
+}
+
+// Resolves once no (re)start is in flight; the core state then tells whether the core came up
+export async function waitForCoreStart(): Promise<void> {
+  while (coreStarting) {
+    await coreStarting.catch(() => {})
+  }
+}
+
+export function startCore(detached = false): Promise<Promise<void>[]> {
+  // A detached core is left running on quit, nothing waits for it
+  if (detached) return launchCore(true)
+  return trackCoreStart(
+    launchCore().catch(async (error: unknown) => {
+      // Validation can fail while the previous core is still serving traffic.
+      if (getCoreState().status !== 'running') {
+        await stopCore().catch(() => {})
+        await dropSysProxyOnCoreFailure()
+      }
+      reportCoreError(error)
+      throw error
+    })
+  )
+}
+
+async function launchCore(detached = false): Promise<Promise<void>[]> {
   const {
     core = 'mihomo',
     autoSetDNSMode = 'exec',
@@ -104,18 +154,20 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
   const { current } = await getProfileConfig()
   const { tun } = await getControledMihomoConfig()
 
-  let corePath: string
-  try {
-    corePath = mihomoCorePath(core)
-  } catch (error) {
-    if (core === 'system') {
-      await patchAppConfig({ core: 'mihomo' })
-      return startCore(detached)
-    }
-    throw error
+  // Older configs may name the removed system core or an alpha core this build left out
+  if (core !== 'mihomo' && !installedCores().includes(core)) {
+    await patchAppConfig({ core: 'mihomo' })
+    return launchCore(detached)
+  }
+  const corePath = mihomoCorePath(core)
+  // An antivirus quarantining the binary leaves no other trace
+  if (!existsSync(corePath)) {
+    throw new CoreError('binary-missing', `${corePath}: ENOENT`)
   }
 
-  const { logLevel } = await generateProfile()
+  const { logLevel } = await generateProfile().catch((e) => {
+    throw new CoreError('config-invalid', e)
+  })
   await checkProfile()
   await stopCore()
   if (tun?.enable && autoSetDNSMode !== 'none') {
@@ -128,8 +180,6 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
     }
   }
   await resetProviderTracking()
-  const stdout = createWriteStream(logPath(), { flags: 'a' })
-  const stderr = createWriteStream(logPath(), { flags: 'a' })
   const env = {
     DISABLE_LOOPBACK_DETECTOR: String(disableLoopbackDetector),
     DISABLE_EMBED_CA: String(disableEmbedCA),
@@ -161,30 +211,17 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
       resolve([new Promise(() => {})])
     })
   }
-  child.on('close', async (code, signal) => {
-    await writeFile(logPath(), `[Manager]: Core closed, code: ${code}, signal: ${signal}\n`, {
-      flag: 'a'
-    })
-    if (retry) {
-      await writeFile(logPath(), `[Manager]: Try Restart Core\n`, { flag: 'a' })
-      retry--
-      try {
-        await restartCore()
-      } catch (e) {
-        // Restart refused to spawn (e.g. config no longer validates), so no
-        // further 'close' events will fire — tear down leftovers and stop.
-        await writeFile(logPath(), `[Manager]: Restart after crash failed, ${e}\n`, { flag: 'a' })
-        await stopCore().catch(() => {})
-        await dropSysProxyOnCoreFailure()
-        showError(t('tray.coreStartError'), `${e}`)
-      }
-    } else {
-      await stopCore()
-      await dropSysProxyOnCoreFailure()
-    }
-  })
-  child.stdout?.pipe(stdout)
-  child.stderr?.pipe(stderr)
+  setCoreStatus('starting')
+  const outputTail: string[] = []
+  const rememberOutput = (data: Buffer): void => {
+    outputTail.push(...data.toString().split('\n').filter(Boolean))
+    outputTail.splice(0, outputTail.length - CORE_OUTPUT_TAIL)
+  }
+  // The log outlives this core, so its exit must not end it
+  child.stdout?.pipe(coreLog, { end: false })
+  child.stderr?.pipe(coreLog, { end: false })
+  child.stdout?.on('data', rememberOutput)
+  child.stderr?.on('data', rememberOutput)
   return new Promise((resolve, reject) => {
     let settled = false
     const settleResolve = (value: Promise<void>[]): void => {
@@ -206,6 +243,40 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
       settleReject(new Error(t('tray.coreStartTimeout')))
     }, 30000)
 
+    let ready = false
+    child.on('error', (error) => {
+      settleReject(isSpawnFailure(error) ? new CoreError('binary-missing', error) : error)
+    })
+    child.on('close', async (code, signal) => {
+      setCoreStatus('stopped')
+      await writeFile(logPath(), `[Manager]: Core closed, code: ${code}, signal: ${signal}\n`, {
+        flag: 'a'
+      })
+      const failure = new CoreError(
+        'crashed',
+        [`code: ${code}, signal: ${signal}`, ...outputTail].join('\n')
+      )
+      // Exiting before the controller came up would fail the same way on every retry
+      if (!ready) {
+        settleReject(failure)
+        return
+      }
+      if (retry) {
+        await writeFile(logPath(), `[Manager]: Try Restart Core\n`, { flag: 'a' })
+        retry--
+        try {
+          await restartCore()
+        } catch (error) {
+          await stopCore().catch(() => {})
+          await dropSysProxyOnCoreFailure()
+          reportCoreError(error)
+        }
+      } else {
+        await stopCore()
+        await dropSysProxyOnCoreFailure()
+        reportCoreError(failure)
+      }
+    })
     child.stdout?.on('data', async (data) => {
       const str = data.toString()
       if (
@@ -218,10 +289,10 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
       if (process.platform === 'win32' && str.includes('updater: finished')) {
         try {
           await stopCore(true)
-          const promises = await startCore()
-          await Promise.all(promises)
-        } catch (e) {
-          showError(t('tray.coreStartError'), `${e}`)
+          await restartCore()
+        } catch (error) {
+          reportCoreError(error)
+          await dropSysProxyOnCoreFailure()
         }
       }
 
@@ -229,6 +300,9 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
         (process.platform !== 'win32' && str.includes('RESTful API unix listening at')) ||
         (process.platform === 'win32' && str.includes('RESTful API pipe listening at'))
       ) {
+        if (ready || settled) return
+        ready = true
+        setCoreStatus('running')
         settleResolve([
           new Promise((resolve, reject) => {
             const handleProviderInitialization = async (logLine: string): Promise<void> => {
@@ -277,7 +351,10 @@ export async function startCore(detached = false): Promise<Promise<void>[]> {
                     mainWindow?.webContents.send('groupsUpdated')
                     mainWindow?.webContents.send('rulesUpdated')
                   }),
-                  new Promise((r) => setTimeout(r, 100)).then(() => applyLogLevel(logLevel))
+                  new Promise((r) => setTimeout(r, 100)).then(async () => {
+                    // This listener survives profile reloads; use the current profile's level.
+                    await applyLogLevel((await getEffectiveLogLevel()).value)
+                  })
                 ]).then(() => resolve())
               }
             }
@@ -318,6 +395,7 @@ export async function stopCore(force = false): Promise<void> {
     await stopChildProcess(child)
     child = undefined as unknown as ChildProcess
   }
+  setCoreStatus('stopped')
 
   await getAxios(true).catch(() => {})
 
@@ -433,14 +511,32 @@ async function stopChildProcess(process: ChildProcess): Promise<void> {
   })
 }
 
-export async function restartCore(): Promise<void> {
+async function restartToController(): Promise<Promise<void>[]> {
   // No leading stopCore here: startCore validates the new config
   // (generateProfile -> checkProfile) BEFORE stopping the old core, so a
   // broken config never kills a healthy one. Errors propagate so callers
   // can revert persisted state.
-  const promises = await startCore()
-  await Promise.all(promises)
-  await reapplySysProxyIfDropped()
+  try {
+    const promises = await startCore()
+    await reapplySysProxyIfDropped()
+    return promises
+  } catch (error) {
+    reportCoreError(error)
+    throw error
+  }
+}
+
+export async function restartCore(): Promise<void> {
+  await Promise.all(await restartToController())
+}
+
+// Profile operations release their queue once the controller accepts requests. Providers may
+// still be downloading; holding the queue until they finish would block later profile edits.
+export async function restartCoreUntilUp(): Promise<void> {
+  const promises = await restartToController()
+  void Promise.all(promises).catch((error: unknown) => {
+    showError(t('tray.coreStartError'), String(error))
+  })
 }
 
 // Set when a terminal core failure forced the OS proxy off; the next
@@ -515,6 +611,9 @@ async function checkProfile(): Promise<void> {
       { env }
     )
   } catch (error) {
+    if (isSpawnFailure(error)) {
+      throw new CoreError('binary-missing', error)
+    }
     if (error instanceof Error && ('stdout' in error || 'stderr' in error)) {
       const { stdout = '', stderr = '' } = error as unknown as {
         stdout?: string
@@ -526,7 +625,10 @@ async function checkProfile(): Promise<void> {
         .map((line) => line.match(/level=(?:error|fatal)(.*)$/)?.[1])
         .filter((part): part is string => part !== undefined)
       if (errorLines.length > 0) {
-        throw new Error(`${t('error.profileCheckFailed')}:\n${errorLines.join('\n')}`)
+        throw new CoreError(
+          'config-invalid',
+          `${t('error.profileCheckFailed')}:\n${errorLines.join('\n')}`
+        )
       }
       // No level-tagged diagnostics (exec failure, exotic output) — fall back
       // to the exec error message plus the tail of whatever the core printed.
@@ -541,6 +643,7 @@ async function checkProfile(): Promise<void> {
     } else {
       throw error
     }
+    throw error
   }
 }
 
@@ -573,7 +676,7 @@ export async function manualGrantCorePermition(
     }
   }
 
-  const targetCores = cores || ['mihomo', 'mihomo-alpha']
+  const targetCores = cores || installedCores()
   await Promise.all(targetCores.map((core) => grantPermission(core)))
 }
 
@@ -637,7 +740,7 @@ export async function revokeCorePermission(cores?: ('mihomo' | 'mihomo-alpha')[]
     }
   }
 
-  const targetCores = cores || ['mihomo', 'mihomo-alpha']
+  const targetCores = cores || installedCores()
   await Promise.all(targetCores.map((core) => revokePermission(core)))
 }
 

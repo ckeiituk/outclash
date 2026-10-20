@@ -52,6 +52,26 @@ interface MihomoConfig {
   'proxy-providers'?: Record<string, unknown>
 }
 
+type MihomoPortKey = 'port' | 'socks-port' | 'redir-port' | 'tproxy-port' | 'mixed-port'
+
+interface MihomoPortInfo {
+  // the port mihomo is configured with
+  value: number
+  // the port declared by the current profile, if any
+  profileValue?: number
+  // true when the profile's port is used instead of the app setting
+  fromProfile: boolean
+}
+
+interface MihomoLogLevelInfo {
+  // the level mihomo logs at
+  value: LogLevel
+  // the level declared by the current profile, if any
+  profileValue?: LogLevel
+  // true when the profile's level is used instead of the app setting
+  fromProfile: boolean
+}
+
 interface MihomoTunConfig {
   enable?: boolean
   stack?: TunStack
@@ -142,11 +162,12 @@ interface ProxyProviderConfig {
   url?: string
 }
 
-interface MihomoRuleProviders {
-  providers: Record<string, MihomoRuleProvider>
-}
+type MihomoRuleProviders = Record<string, MihomoRuleProvider>
 
 interface MihomoRuleProvider {
+  path?: string
+  url?: string
+  payload?: string[]
   behavior: string
   format: string
   name: string

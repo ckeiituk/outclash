@@ -13,6 +13,7 @@ import {
 } from 'electron'
 import { addProfileItem, getAppConfig, patchControledMihomoConfig } from './config'
 import { dropSysProxyOnCoreFailure, quitWithoutCore, startCore, stopCore } from './core/manager'
+import { reportCoreError } from './core/status'
 import { disableSysProxy } from './sys/sysproxy'
 import icon from '../../resources/icon.png?asset'
 import { createTray } from './resolve/tray'
@@ -403,8 +404,7 @@ app.whenReady().then(async () => {
       })
       coreStarted = true
     } catch (e) {
-      showError(t('dialog.coreStartError'), `${e}`)
-      // A dead core with the OS proxy still on black-holes all traffic.
+      reportCoreError(e)
       await dropSysProxyOnCoreFailure()
     }
   })()

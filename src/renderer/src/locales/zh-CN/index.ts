@@ -234,6 +234,7 @@ export default {
       connecting: '连接中...',
       connected: '已连接',
       disconnecting: '断开中...',
+      coreProblem: '内核异常',
       trafficRemaining: '剩余流量:',
       daysRemaining: '剩余天数:',
       expires: '到期:',
@@ -321,7 +322,15 @@ export default {
       title: '实时日志',
       clearLogs: '清空日志',
       openLogDir: '打开日志文件夹',
-      autoScroll: '自动滚动'
+      autoScroll: '自动滚动',
+      pause: '暂停',
+      resume: '继续',
+      newLogs_other: '{{count}} 条新日志',
+      emptyTitle: '暂无日志',
+      emptyDescription: '内核日志会显示在这里',
+      emptyFilterTitle: '没有匹配的结果',
+      emptyFilterDescription: '换个关键词，或清除筛选条件查看全部日志。',
+      clearFilter: '清除筛选'
     },
     rules: {
       title: '分流规则'
@@ -420,15 +429,11 @@ export default {
       coreVersion: '内核版本',
       upgradeCore: '升级内核',
       builtinStable: '内置稳定版',
-      builtinPreview: '内置预览版',
-      useSystemCore: '使用系统内核',
-      systemCorePath: '系统内核路径选择',
-      searchingCore: '正在查找系统内核...',
-      coreNotFound: '未找到系统内核',
-      coreNotFoundWarning: '未在系统中找到 mihomo 或 clash 内核，请安装后重试',
+      builtinPreview: '预览版 (alpha)',
+      downloadAlphaCore: '下载',
+      downloadAlphaCoreHint: '下载 mihomo 预览版 (alpha) 内核',
+      alphaCoreNotDownloaded: '（未下载）',
       alreadyLatest: '已经是最新版本',
-      systemCoreNotFound: '未找到系统内核',
-      systemCoreNotFoundBody: '系统中未找到可用的 mihomo 或 clash 内核，已自动切换回内置内核',
       runningMode: '运行模式',
       taskSchedule: '任务计划',
       authorizedRun: '授权运行',
@@ -444,6 +449,8 @@ export default {
       warning: '警告',
       info: '信息',
       debug: '调试',
+      fromProfile: '来自订阅',
+      useProfileLogLevel: '使用订阅中的日志等级（{{level}}）',
       confirmUseTaskSchedule: '确认使用任务计划？',
       confirmUseTaskScheduleDesc: '确认后将退出应用，请手动使用管理员运行一次程序',
       confirmCancelTaskSchedule: '确认取消任务计划？',
@@ -486,6 +493,17 @@ export default {
   errorBoundary: {
     title: '应用崩溃了 :( 请将以下信息提交给开发者以排查错误',
     copyErrorInfo: '复制报错信息'
+  },
+
+  coreError: {
+    binaryMissingTitle: '未找到内核',
+    binaryMissingDescription:
+      '内核文件已被删除或拦截，很可能被杀毒软件隔离。请将应用目录加入杀毒软件白名单并重新安装应用。',
+    configInvalidTitle: '配置错误',
+    configInvalidDescription: '内核无法加载当前订阅的配置。请尝试更新订阅或联系支持。',
+    crashedTitle: '内核已停止',
+    crashedDescription: '内核异常退出，请尝试重启内核。',
+    restart: '重启'
   },
 
   modal: {
@@ -653,6 +671,8 @@ export default {
       httpPort: 'Http 端口',
       redirPort: 'Redir 端口',
       tproxyPort: 'TProxy 端口',
+      fromProfile: '来自订阅',
+      useProfilePort: '使用订阅中的端口（{{port}}）',
       allowLan: '允许局域网连接',
       allowedIpRanges: '允许连接的 IP 段',
       deniedIpRanges: '禁止连接的 IP 段',

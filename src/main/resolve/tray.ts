@@ -24,6 +24,7 @@ import { app, BrowserWindow, clipboard, ipcMain, Menu, nativeImage, screen, Tray
 import { triggerSysProxy } from '../sys/sysproxy'
 import { quitWithoutCore } from '../core/manager'
 import { mihomoHotReloadConfig } from '../core/mihomoApi'
+import { getMixedPort } from '../core/factory'
 import { floatingWindow } from './floatingWindow'
 import { is } from '@electron-toolkit/utils'
 import { join } from 'path'
@@ -139,7 +140,8 @@ async function handleTrayClick(): Promise<void> {
 }
 
 export const buildContextMenu = async (): Promise<Menu> => {
-  const { mode, tun, 'mixed-port': mixedPort } = await getControledMihomoConfig()
+  const { mode, tun } = await getControledMihomoConfig()
+  const mixedPort = await getMixedPort()
   const {
     sysProxy,
     onlyActiveDevice = false,
@@ -462,7 +464,7 @@ ipcMain.on('customTray:close', () => {
 })
 
 export async function copyEnv(type: 'bash' | 'cmd' | 'powershell' | 'nushell'): Promise<void> {
-  const { 'mixed-port': mixedPort = 7897 } = await getControledMihomoConfig()
+  const mixedPort = await getMixedPort()
   const { sysProxy } = await getAppConfig()
   const { host, bypass = [] } = sysProxy
   switch (type) {

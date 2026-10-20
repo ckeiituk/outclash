@@ -10,15 +10,19 @@ import { mihomoIpcPath } from '../utils/dirs'
 import { debounce } from '../utils/debounce'
 import { safeSend } from '../utils/safeSend'
 import { t } from '../utils/i18n'
+import { CoreError, reportCoreError, setCoreStatus } from './status'
 
 // The core answered the reload request and rejected the config itself —
 // the running core is untouched, so a restart would only destroy it.
-export class ConfigInvalidError extends Error {
+export class ConfigInvalidError extends CoreError {
   constructor(message: string) {
-    super(message)
+    super('config-invalid', message)
     this.name = 'ConfigInvalidError'
   }
 }
+
+// Socket-level failures mean nothing is listening on the controller, i.e. the core is down
+const CORE_UNREACHABLE_CODES = new Set(['ENOENT', 'ECONNREFUSED', 'ECONNRESET', 'EPIPE'])
 
 let axiosIns: AxiosInstance = null!
 let mihomoTrafficWs: WebSocket | null = null
@@ -53,6 +57,9 @@ export const getAxios = async (force: boolean = false): Promise<AxiosInstance> =
     (error) => {
       if (error.response && error.response.data) {
         return Promise.reject(error.response.data)
+      }
+      if (CORE_UNREACHABLE_CODES.has(error.code)) {
+        return Promise.reject(new Error(t('error.coreUnreachable')))
       }
       return Promise.reject(error)
     }
@@ -353,11 +360,28 @@ export const mihomoUpgradeUI = async (): Promise<void> => {
   return await instance.post('/upgrade/ui')
 }
 
+// Error bodies returned by the controller, as opposed to transport failures
+const isControllerError = (e: unknown): e is { message: string } =>
+  typeof e === 'object' &&
+  e !== null &&
+  !(e instanceof Error) &&
+  'message' in e &&
+  typeof e.message === 'string'
+
+// A hot reload that failed this way left the previous config running; any other failure (a timeout,
+// an unreachable core) says nothing about the config itself
+export const isConfigRejection = (e: unknown): boolean =>
+  (e instanceof CoreError && e.reason === 'config-invalid') || isControllerError(e)
+
 export const mihomoHotReloadConfig = async (): Promise<void> => {
   const { generateProfile } = await import('./factory')
   const { getProfileConfig } = await import('../config')
   const { resetProviderTracking } = await import('./manager')
-  const { logLevel } = await generateProfile()
+  const { logLevel } = await generateProfile().catch((e) => {
+    const error = new CoreError('config-invalid', e)
+    reportCoreError(error)
+    throw error
+  })
   const { current } = await getProfileConfig()
   const { diffWorkDir = false } = await getAppConfig()
   const { mihomoWorkConfigPath } = await import('../utils/dirs')
@@ -369,18 +393,32 @@ export const mihomoHotReloadConfig = async (): Promise<void> => {
   } catch (error) {
     // The response interceptor rejects with error.response.data when the
     // core answered, and with the raw AxiosError when nothing answered.
-    if (axios.isAxiosError(error) && !error.response) {
+    if (!isControllerError(error)) {
       throw error
     }
     const message =
       typeof error === 'object' && error && 'message' in error
         ? String(error.message)
         : String(error)
-    throw new ConfigInvalidError(`${t('error.coreConfigRejected')}: ${message}`)
+    const rejection = new ConfigInvalidError(`${t('error.coreConfigRejected')}: ${message}`)
+    reportCoreError(new CoreError('config-invalid', rejection))
+    throw rejection
   }
   await waitForMihomoReloadReady()
+  setCoreStatus('running')
   await applyLogLevel(logLevel)
   notifyProfileReloaded()
+}
+
+// Only the log level changed, so a hot reload, which also resets the fake-ip pool, is not needed
+export const mihomoApplyLogLevel = async (): Promise<void> => {
+  const { generateProfile } = await import('./factory')
+  const { logLevel } = await generateProfile()
+  try {
+    await applyLogLevel(logLevel)
+  } catch {
+    // running core may not be ready; the level will apply on next restart/reload
+  }
 }
 
 export const startMihomoTraffic = async (): Promise<void> => {
@@ -493,9 +531,8 @@ export const stopMihomoLogs = (): void => {
 }
 
 export const applyLogLevel = async (level: LogLevel): Promise<void> => {
-  if (level !== (await getRuntimeConfig())?.['log-level']) {
-    await patchMihomoConfig({ 'log-level': level })
-  }
+  // The core may still run a level patched earlier, so the config file can't tell whether it is current
+  await patchMihomoConfig({ 'log-level': level })
   if (mihomoLogsWs && level !== mihomoLogsLevel) {
     stopMihomoLogs()
     startMihomoLogs(level)

@@ -19,8 +19,7 @@ interface IHost {
 }
 
 interface AppConfig {
-  core: 'mihomo' | 'mihomo-alpha' | 'system'
-  systemCorePath?: string
+  core: 'mihomo' | 'mihomo-alpha'
   corePermissionMode?: 'elevated' | 'service'
   elevationDeclined?: boolean
   serviceAuthKey?: string
@@ -90,6 +89,10 @@ interface AppConfig {
   controlDns?: boolean
   controlSniff?: boolean
   controlTun?: boolean
+  // ports the user set in the app settings; the others follow the profile when it declares them
+  customPorts?: MihomoPortKey[]
+  // true when the user set the log level in the app settings; otherwise it follows the profile when it declares one
+  customLogLevel?: boolean
   useDockIcon?: boolean
   useCustomTrayMenu?: boolean
   hosts: IHost[]
@@ -157,4 +160,12 @@ interface LogFileInfo {
   name: string
   size: number // bytes
   mtime: number // epoch ms
+}
+
+type CoreErrorReason = 'binary-missing' | 'config-invalid' | 'crashed'
+
+interface CoreState {
+  status: 'starting' | 'running' | 'stopped' | 'error'
+  // `at` identifies the failure, so the UI can tell a new one from one the user already closed
+  error?: { reason: CoreErrorReason; detail: string; at: number }
 }

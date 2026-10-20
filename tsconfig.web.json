@@ -8,6 +8,8 @@
     "src/shared/types/*.d.ts"
   ],
   "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
     "composite": true,
     "jsx": "react-jsx",
     "moduleResolution": "bundler",

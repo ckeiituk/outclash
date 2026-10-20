@@ -40,7 +40,7 @@ const RuleProvider: React.FC = () => {
             setShowDetails((prev) => ({
               ...prev,
               show: true,
-              path: provider?.path || `rules/${getHash(provider?.url)}`,
+              path: provider.path || `rules/${getHash(provider.url || '')}`,
               behavior: provider?.behavior || 'domain'
             }))
           }
@@ -73,7 +73,7 @@ const RuleProvider: React.FC = () => {
   const providers = useMemo(() => {
     if (!data) return []
     return Object.values(data.providers).sort((a, b) => {
-      const order = { File: 1, Inline: 2, HTTP: 3 }
+      const order: Record<string, number> = { File: 1, Inline: 2, HTTP: 3 }
       return (order[a.vehicleType] || 4) - (order[b.vehicleType] || 4)
     })
   }, [data])

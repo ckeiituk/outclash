@@ -19,7 +19,7 @@ export async function listLogFiles(): Promise<LogFileInfo[]> {
   const files = await readdir(logDir())
   const infos = await Promise.all(
     files
-      .filter((file) => file.endsWith('.log'))
+      .filter((file: string) => file.endsWith('.log') || file.endsWith('.log.gz'))
       .map(async (file) => {
         const st = await stat(path.join(logDir(), file))
         return { name: file, size: st.size, mtime: st.mtimeMs }
@@ -55,7 +55,7 @@ export async function uploadLogFiles(fileNames: string[]): Promise<void> {
     const files = fileNames.filter(
       (name) =>
         path.basename(name) === name &&
-        name.endsWith('.log') &&
+        (name.endsWith('.log') || name.endsWith('.log.gz')) &&
         existsSync(path.join(logDir(), name))
     )
     if (!files.length) throw new Error(t('error.noLogFilesSelected'))

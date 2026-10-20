@@ -9,7 +9,7 @@ import React, { KeyboardEvent, useState, useEffect } from 'react'
 import { platform } from '@renderer/utils/init'
 import { registerShortcut } from '@renderer/utils/ipc'
 
-const keyMap = {
+const keyMap: Record<string, string> = {
   Backquote: '`',
   Backslash: '\\',
   BracketLeft: '[',

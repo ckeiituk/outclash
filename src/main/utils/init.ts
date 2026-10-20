@@ -22,6 +22,7 @@ import { stringifyYaml } from './yaml'
 import { mkdir, writeFile, cp, rm, readdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
+import { GEO_FILES, linkGeoFiles, removeUnusedMetadb } from './geo'
 import { startPacServer } from '../resolve/server'
 import { triggerSysProxy } from '../sys/sysproxy'
 import {
@@ -33,8 +34,10 @@ import {
 import { app } from 'electron'
 import { startSSIDCheck } from '../sys/ssid'
 import { startNetworkDetection } from '../core/manager'
+import { PORT_KEYS } from '../core/factory'
 import { initKeyManager } from '../service/manager'
 import { migrateFromOldApp } from './migration'
+import { cleanupLogs } from './logs'
 
 async function initDirs(): Promise<void> {
   if (!existsSync(dataDir())) {
@@ -76,22 +79,14 @@ async function initConfig(): Promise<void> {
 async function initFiles(): Promise<void> {
   const copy = async (file: string): Promise<void> => {
     const targetPath = path.join(mihomoWorkDir(), file)
-    const testTargetPath = path.join(mihomoTestDir(), file)
     const sourcePath = path.join(resourcesFilesDir(), file)
     if (!existsSync(targetPath) && existsSync(sourcePath)) {
       await cp(sourcePath, targetPath, { recursive: true })
     }
-    if (!existsSync(testTargetPath) && existsSync(sourcePath)) {
-      await cp(sourcePath, testTargetPath, { recursive: true })
-    }
   }
-  await Promise.all([
-    copy('country.mmdb'),
-    copy('geoip.metadb'),
-    copy('geoip.dat'),
-    copy('geosite.dat'),
-    copy('ASN.mmdb')
-  ])
+  await Promise.all(GEO_FILES.map(copy))
+  await removeUnusedMetadb(mihomoWorkDir())
+  await linkGeoFiles(mihomoTestDir())
 }
 
 async function cleanup(): Promise<void> {
@@ -101,20 +96,6 @@ async function cleanup(): Promise<void> {
     if (file.endsWith('.exe') || file.endsWith('.pkg') || file.endsWith('.7z')) {
       try {
         await rm(path.join(dataDir(), file))
-      } catch {
-        // ignore
-      }
-    }
-  }
-  // logs
-  const { maxLogDays = 7 } = await getAppConfig()
-  const logs = await readdir(logDir())
-  for (const log of logs) {
-    const date = new Date(log.split('.')[0])
-    const diff = Date.now() - date.getTime()
-    if (diff > maxLogDays * 24 * 60 * 60 * 1000) {
-      try {
-        await rm(path.join(logDir(), log))
       } catch {
         // ignore
       }
@@ -160,6 +141,13 @@ async function migration(): Promise<void> {
     if (!(key in appConfig) && defaultConfig[key as keyof AppConfig] !== undefined) {
       ;(appConfigPatch as Record<string, unknown>)[key] = defaultConfig[key as keyof AppConfig]
     }
+  }
+
+  // Before customPorts existed, a port that differs from the default was set by the user
+  if (appConfig.customPorts === undefined) {
+    appConfigPatch.customPorts = PORT_KEYS.filter(
+      (key) => key in mihomoConfig && mihomoConfig[key] !== defaultControledMihomoConfig[key]
+    )
   }
 
   const legacyAppConfig = appConfig as Partial<AppConfig>
@@ -215,6 +203,8 @@ export async function init(): Promise<void> {
       // ignore
     })
   ])
+  // Archiving can take a while and nothing at startup depends on it
+  cleanupLogs().catch(() => {})
 
   const { sysProxy, onlyActiveDevice = false, networkDetection = false } = appConfig
 

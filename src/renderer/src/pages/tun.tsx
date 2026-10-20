@@ -277,7 +277,10 @@ const Tun: React.FC = () => {
                   variant="outline"
                   onClick={() => {
                     const addresses = [
-                      ...new Set([...values.routeExcludeAddress, ...DEFAULT_ROUTE_EXCLUDE_ADDRESSES])
+                      ...new Set([
+                        ...values.routeExcludeAddress,
+                        ...DEFAULT_ROUTE_EXCLUDE_ADDRESSES
+                      ])
                     ]
                     setValues({ ...values, routeExcludeAddress: addresses })
                   }}

@@ -10,6 +10,7 @@ import {
 } from '../config'
 import { triggerSysProxy } from '../sys/sysproxy'
 import { mihomoHotReloadConfig } from '../core/mihomoApi'
+import { getMixedPort } from '../core/factory'
 import { quitWithoutCore } from '../core/manager'
 import { floatingWindow, triggerFloatingWindow } from './floatingWindow'
 import { updateTrayIcon } from './tray'
@@ -40,7 +41,7 @@ export async function registerShortcut(
       return globalShortcut.register(newShortcut, async () => {
         const { sysProxy, onlyActiveDevice = false } = await getAppConfig()
         const { enable, mode } = sysProxy
-        const { 'mixed-port': mixedPort } = await getControledMihomoConfig()
+        const mixedPort = await getMixedPort()
         try {
           const nextEnable = !enable
           if (nextEnable && (mode ?? 'manual') == 'manual' && mixedPort == 0) {

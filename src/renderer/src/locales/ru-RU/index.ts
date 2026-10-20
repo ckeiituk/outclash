@@ -160,6 +160,7 @@ export default {
       connecting: 'Подключение...',
       connected: 'Подключено',
       disconnecting: 'Отключение...',
+      coreProblem: 'Проблема с ядром',
       trafficRemaining: 'Трафика осталось:',
       daysRemaining: 'Дней осталось:',
       expires: 'Истекает:',
@@ -252,7 +253,17 @@ export default {
       title: 'Логи',
       clearLogs: 'Очистить логи',
       openLogDir: 'Открыть папку логов',
-      autoScroll: 'Автопрокрутка'
+      autoScroll: 'Автопрокрутка',
+      pause: 'Приостановить',
+      resume: 'Продолжить',
+      newLogs_one: '{{count}} новая запись',
+      newLogs_few: '{{count}} новые записи',
+      newLogs_many: '{{count}} новых записей',
+      emptyTitle: 'Логов пока нет',
+      emptyDescription: 'Сообщения ядра появятся здесь',
+      emptyFilterTitle: 'Ничего не найдено',
+      emptyFilterDescription: 'Измените запрос или сбросьте фильтр, чтобы увидеть все записи.',
+      clearFilter: 'Сбросить фильтр'
     },
     rules: {
       title: 'Правила'
@@ -353,17 +364,11 @@ export default {
       coreVersion: 'Версия ядра',
       upgradeCore: 'Обновить ядро',
       builtinStable: 'Встроенное стабильное',
-      builtinPreview: 'Встроенное предварительное',
-      useSystemCore: 'Использовать системное ядро',
-      systemCorePath: 'Путь к системному ядру',
-      searchingCore: 'Поиск системного ядра...',
-      coreNotFound: 'Ядро не найдено',
-      coreNotFoundWarning:
-        'В системе не найдено ядро mihomo или clash. Установите его и попробуйте снова',
+      builtinPreview: 'Предварительное (alpha)',
+      downloadAlphaCore: 'Скачать',
+      downloadAlphaCoreHint: 'Скачать предварительное ядро mihomo (alpha)',
+      alphaCoreNotDownloaded: '(не загружено)',
       alreadyLatest: 'Уже используется последняя версия',
-      systemCoreNotFound: 'Системное ядро не найдено',
-      systemCoreNotFoundBody:
-        'В системе не найдено доступное ядро mihomo или clash, поэтому приложение автоматически переключилось на встроенное ядро',
       runningMode: 'Режим работы',
       taskSchedule: 'Планировщик задач',
       authorizedRun: 'Запуск с повышенными правами',
@@ -379,6 +384,8 @@ export default {
       warning: 'Предупреждение',
       info: 'Информация',
       debug: 'Отладка',
+      fromProfile: 'из подписки',
+      useProfileLogLevel: 'Вернуть уровень из подписки ({{level}})',
       confirmUseTaskSchedule: 'Включить запуск через планировщик задач?',
       confirmUseTaskScheduleDesc:
         'После подтверждения приложение завершится. Затем один раз запустите программу от имени администратора вручную',
@@ -422,6 +429,18 @@ export default {
   errorBoundary: {
     title: 'Приложение упало :( Отправьте информацию ниже разработчикам',
     copyErrorInfo: 'Копировать информацию об ошибке'
+  },
+
+  coreError: {
+    binaryMissingTitle: 'Ядро не найдено',
+    binaryMissingDescription:
+      'Файл ядра удалён или заблокирован. Скорее всего, его поместил в карантин антивирус: добавьте папку приложения в исключения и переустановите приложение.',
+    configInvalidTitle: 'Ошибка в конфигурации',
+    configInvalidDescription:
+      'Ядро не смогло загрузить конфигурацию профиля. Попробуйте обновить подписку или обратитесь в поддержку.',
+    crashedTitle: 'Ядро остановилось',
+    crashedDescription: 'Ядро завершило работу с ошибкой. Попробуйте перезапустить его.',
+    restart: 'Перезапустить'
   },
 
   modal: {
@@ -593,6 +612,8 @@ export default {
       httpPort: 'HTTP-порт',
       redirPort: 'Redir-порт',
       tproxyPort: 'Порт TProxy',
+      fromProfile: 'из подписки',
+      useProfilePort: 'Вернуть порт из подписки ({{port}})',
       allowLan: 'Разрешить подключения из локальной сети',
       allowedIpRanges: 'Разрешённые диапазоны IP',
       deniedIpRanges: 'Запрещённые диапазоны IP',

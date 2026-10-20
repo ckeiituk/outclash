@@ -159,6 +159,7 @@ export default {
       connecting: 'Connecting...',
       connected: 'Connected',
       disconnecting: 'Disconnecting...',
+      coreProblem: 'Core problem',
       trafficRemaining: 'Traffic left:',
       daysRemaining: 'Days left:',
       expires: 'Expires:',
@@ -250,7 +251,16 @@ export default {
       title: 'Real-time Logs',
       clearLogs: 'Clear logs',
       openLogDir: 'Open logs folder',
-      autoScroll: 'Auto-scroll'
+      autoScroll: 'Auto-scroll',
+      pause: 'Pause',
+      resume: 'Resume',
+      newLogs_one: '{{count}} new log',
+      newLogs_other: '{{count}} new logs',
+      emptyTitle: 'No logs yet',
+      emptyDescription: 'Core messages will appear here',
+      emptyFilterTitle: 'Nothing matches the filter',
+      emptyFilterDescription: 'Try a different query or clear the filter to see all logs.',
+      clearFilter: 'Clear filter'
     },
     rules: {
       title: 'Routing Rules'
@@ -351,17 +361,11 @@ export default {
       coreVersion: 'Core Version',
       upgradeCore: 'Upgrade core',
       builtinStable: 'Built-in Stable',
-      builtinPreview: 'Built-in Preview',
-      useSystemCore: 'Use System Core',
-      systemCorePath: 'System Core Path Selection',
-      searchingCore: 'Searching for system core...',
-      coreNotFound: 'Core not found',
-      coreNotFoundWarning:
-        'No mihomo or clash core found in the system, please install and try again',
+      builtinPreview: 'Preview (alpha)',
+      downloadAlphaCore: 'Download',
+      downloadAlphaCoreHint: 'Download the mihomo preview (alpha) core',
+      alphaCoreNotDownloaded: '(not downloaded)',
       alreadyLatest: 'Already using latest version',
-      systemCoreNotFound: 'System core not found',
-      systemCoreNotFoundBody:
-        'No available mihomo or clash core found in the system, automatically switched back to built-in core',
       runningMode: 'Running Mode',
       taskSchedule: 'Task Schedule',
       authorizedRun: 'Authorized Run',
@@ -377,6 +381,8 @@ export default {
       warning: 'Warning',
       info: 'Info',
       debug: 'Debug',
+      fromProfile: 'from subscription',
+      useProfileLogLevel: 'Use the subscription level ({{level}})',
       confirmUseTaskSchedule: 'Confirm to use task schedule?',
       confirmUseTaskScheduleDesc:
         'After confirmation, the application will exit. Please manually run the program as administrator once',
@@ -420,6 +426,18 @@ export default {
   errorBoundary: {
     title: 'The app crashed :( Please submit the info below to help debug',
     copyErrorInfo: 'Copy error info'
+  },
+
+  coreError: {
+    binaryMissingTitle: 'Core not found',
+    binaryMissingDescription:
+      'The core file was deleted or blocked, most likely quarantined by an antivirus. Add the app folder to the antivirus exclusions and reinstall the app.',
+    configInvalidTitle: 'Configuration error',
+    configInvalidDescription:
+      'The core could not load the profile configuration. Try updating the subscription or contact support.',
+    crashedTitle: 'Core stopped',
+    crashedDescription: 'The core exited with an error. Try restarting it.',
+    restart: 'Restart'
   },
 
   modal: {
@@ -592,6 +610,8 @@ export default {
       httpPort: 'HTTP Port',
       redirPort: 'Redir Port',
       tproxyPort: 'TProxy Port',
+      fromProfile: 'from subscription',
+      useProfilePort: 'Use the subscription port ({{port}})',
       allowLan: 'Allow LAN Connection',
       allowedIpRanges: 'Allowed IP Ranges',
       deniedIpRanges: 'Denied IP Ranges',

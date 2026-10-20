@@ -18,6 +18,9 @@ if (process.env.SKIP_PREPARE === '1') {
   process.exit(0)
 }
 
+// The alpha core ships only when a build opts in with MIHOMO_ALPHA=1
+const WITH_ALPHA = process.env.MIHOMO_ALPHA === '1'
+
 /* ======= mihomo alpha======= */
 const MIHOMO_ALPHA_VERSION_URL =
   'https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/version.txt'
@@ -87,9 +90,17 @@ if (!MIHOMO_MAP[`${platform}-${arch}`]) {
   throw new Error(`unsupported platform "${platform}-${arch}"`)
 }
 
-if (!MIHOMO_ALPHA_MAP[`${platform}-${arch}`]) {
+if (WITH_ALPHA && !MIHOMO_ALPHA_MAP[`${platform}-${arch}`]) {
   throw new Error(`unsupported platform "${platform}-${arch}"`)
 }
+
+// extraResources packs extra/ wholesale, so an alpha binary left by an earlier run would ship too
+if (!WITH_ALPHA) {
+  const alphaFile = `mihomo-alpha${platform === 'win32' ? '.exe' : ''}`
+  fs.rmSync(path.join(cwd, 'extra', 'sidecar', alphaFile), { force: true })
+}
+// mihomo reads country.mmdb ahead of geoip.metadb, so the latter is no longer shipped
+fs.rmSync(path.join(cwd, 'extra', 'files', 'geoip.metadb'), { force: true })
 
 /**
  * core info
@@ -253,11 +264,6 @@ const resolveMmdb = () =>
     file: 'country.mmdb',
     downloadURL: `https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country-lite.mmdb`
   })
-const resolveMetadb = () =>
-  resolveResource({
-    file: 'geoip.metadb',
-    downloadURL: `https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb`
-  })
 const resolveGeosite = () =>
   resolveResource({
     file: 'geosite.dat',
@@ -332,7 +338,8 @@ const tasks = [
   {
     name: 'mihomo-alpha',
     func: () => getLatestAlphaVersion().then(() => resolveSidecar(MihomoAlpha())),
-    retry: 5
+    retry: 5,
+    alphaOnly: true
   },
   {
     name: 'mihomo',
@@ -340,7 +347,6 @@ const tasks = [
     retry: 5
   },
   { name: 'mmdb', func: resolveMmdb, retry: 5 },
-  { name: 'metadb', func: resolveMetadb, retry: 5 },
   { name: 'geosite', func: resolveGeosite, retry: 5 },
   { name: 'geoip', func: resolveGeoIP, retry: 5 },
   { name: 'asn', func: resolveASN, retry: 5 },
@@ -380,6 +386,7 @@ async function runTask() {
   if (task.winOnly && platform !== 'win32') return runTask()
   if (task.linuxOnly && platform !== 'linux') return runTask()
   if (task.unixOnly && platform === 'win32') return runTask()
+  if (task.alphaOnly && !WITH_ALPHA) return runTask()
 
   for (let i = 0; i < task.retry; i++) {
     try {

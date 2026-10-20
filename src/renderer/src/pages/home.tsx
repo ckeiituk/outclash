@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import BasePage from '@renderer/components/base/base-page'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
 import { useControledMihomoConfig } from '@renderer/hooks/use-controled-mihomo-config'
+import { useEffectivePorts } from '@renderer/hooks/use-effective-ports'
 import { useProfileConfig } from '@renderer/hooks/use-profile-config'
 import { useGroups } from '@renderer/hooks/use-groups'
 import { triggerSysProxy, updateTrayIcon, mihomoHotReloadConfig } from '@renderer/utils/ipc'
@@ -11,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import Power from '@renderer/assets/on_icon.svg'
 import Pause from '@renderer/assets/pause_icon.svg'
+import Alert from '@renderer/assets/alert_icon.svg'
 import {
   InfinityIcon,
   WifiOff,
@@ -31,6 +33,7 @@ import { Spinner } from '@renderer/components/ui/spinner'
 import { CharacterMorph } from '@renderer/components/ui/character-morph'
 import { calcTraffic } from '@renderer/utils/calc'
 import { useTrafficStore } from '@renderer/store/traffic-store'
+import { reopenCoreError, useCoreLifecycleStore } from '@renderer/store/core-lifecycle-store'
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B'
@@ -86,7 +89,8 @@ const Home: React.FC = () => {
   const { enable: sysProxyEnable = true, mode } = sysProxy || {}
   const { controledMihomoConfig, patchControledMihomoConfig } = useControledMihomoConfig()
   const { tun } = controledMihomoConfig || {}
-  const { 'mixed-port': mixedPort } = controledMihomoConfig || {}
+  const { data: ports } = useEffectivePorts()
+  const mixedPort = ports?.['mixed-port'].value ?? controledMihomoConfig?.['mixed-port']
   const sysProxyDisabled = mixedPort == 0
 
   const { profileConfig, addProfileItem } = useProfileConfig()
@@ -118,23 +122,29 @@ const Home: React.FC = () => {
     'connecting'
   )
 
-  const isSelected = (tun?.enable ?? false) || sysProxyEnable
+  // A dead core cannot carry traffic, whatever the saved switch state says
+  const coreProblem = useCoreLifecycleStore((state) => state.coreState.status === 'error')
+  const isSelected = !coreProblem && ((tun?.enable ?? false) || sysProxyEnable)
 
   const isDisabled =
-    loading || (mainSwitchMode === 'sysproxy' && mode == 'manual' && sysProxyDisabled)
+    loading ||
+    (!coreProblem && mainSwitchMode === 'sysproxy' && mode == 'manual' && sysProxyDisabled)
 
   const status = loading
     ? loadingDirection === 'connecting'
       ? t('pages.home.connecting')
       : t('pages.home.disconnecting')
-    : isSelected
-      ? t('pages.home.connected')
-      : t('pages.home.disconnected')
+    : coreProblem
+      ? t('pages.home.coreProblem')
+      : isSelected
+        ? t('pages.home.connected')
+        : t('pages.home.disconnected')
   const statusWidthTexts = [
     t('pages.home.connecting'),
     t('pages.home.disconnecting'),
     t('pages.home.connected'),
-    t('pages.home.disconnected')
+    t('pages.home.disconnected'),
+    t('pages.home.coreProblem')
   ]
   const showConnectedTimer = !loading && isSelected
 
@@ -419,7 +429,7 @@ const Home: React.FC = () => {
             </div>
             <button
               disabled={isDisabled}
-              onClick={() => onValueChange(!isSelected)}
+              onClick={() => (coreProblem ? reopenCoreError() : onValueChange(!isSelected))}
               data-guide="home-power-toggle"
               className="relative group transition-transform active:scale-95 cursor-pointer"
             >
@@ -447,7 +457,16 @@ const Home: React.FC = () => {
                     src={Power}
                     alt=""
                     className={`absolute inset-0 size-16 fill-foreground transition-all duration-300 ease-out ${
-                      !loading && !isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
+                      !loading && !isSelected && !coreProblem
+                        ? 'opacity-100 scale-100'
+                        : 'opacity-0 scale-90'
+                    }`}
+                  />
+                  <img
+                    src={Alert}
+                    alt=""
+                    className={`absolute inset-0 size-16 fill-foreground transition-all duration-300 ease-out ${
+                      !loading && coreProblem ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
                     }`}
                   />
                 </div>

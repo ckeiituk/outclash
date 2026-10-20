@@ -7,6 +7,7 @@ import { Switch } from '@renderer/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import { useControledMihomoConfig } from '@renderer/hooks/use-controled-mihomo-config'
 import { useAppConfig } from '@renderer/hooks/use-app-config'
+import { useEffectivePorts } from '@renderer/hooks/use-effective-ports'
 import { triggerSysProxy, updateTrayIcon, mihomoHotReloadConfig } from '@renderer/utils/ipc'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +21,8 @@ const ProxySwitches: React.FC = () => {
   const { appConfig, patchAppConfig } = useAppConfig()
   const { sysProxy, onlyActiveDevice = false, mainSwitchMode = 'tun' } = appConfig || {}
   const { enable: sysProxyEnable = true, mode } = sysProxy || {}
-  const { 'mixed-port': mixedPort } = controledMihomoConfig || {}
+  const { data: ports } = useEffectivePorts()
+  const mixedPort = ports?.['mixed-port'].value ?? controledMihomoConfig?.['mixed-port']
   const sysProxyDisabled = mixedPort == 0
 
   return (
