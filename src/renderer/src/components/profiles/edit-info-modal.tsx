@@ -38,6 +38,7 @@ import {
   Check,
   MessageCircleQuestionMark
 } from 'lucide-react'
+import { getSubscriptionUrlCandidates } from '../../../../shared/utils/subscription-url'
 
 interface Props {
   item: ProfileItem
@@ -49,17 +50,11 @@ interface Props {
 const SHARE_LINK_REGEX = /^(vmess|vless|ss|trojan):\/\//
 
 function isValidUrl(url: string): boolean {
-  if (SHARE_LINK_REGEX.test(url)) return true
-  try {
-    const u = new URL(url)
-    return u.protocol === 'http:' || u.protocol === 'https:'
-  } catch {
-    return false
-  }
+  return isShareLink(url) || getSubscriptionUrlCandidates(url).length > 0
 }
 
 function isShareLink(url: string): boolean {
-  return SHARE_LINK_REGEX.test(url)
+  return SHARE_LINK_REGEX.test(url.trim())
 }
 
 const EditInfoModal: React.FC<Props> = (props) => {
@@ -79,11 +74,13 @@ const EditInfoModal: React.FC<Props> = (props) => {
 
   const isNew = !item.id
   const isLocal = values.type === 'local'
-  const urlInvalid = !isLocal && urlTouched && !!values.url && !isValidUrl(values.url)
-
-  const urlValue = values.url || ''
+  const urlValue = values.url?.trim() || ''
   const isShareLinkUrl = isShareLink(urlValue)
-  const canImport = isNew ? (isLocal ? !!values.file : isValidUrl(urlValue)) : true
+  const remoteUrlValid = isNew
+    ? isValidUrl(urlValue)
+    : getSubscriptionUrlCandidates(urlValue).length > 0
+  const urlInvalid = !isLocal && urlTouched && !!urlValue && !remoteUrlValid
+  const canImport = isLocal ? !isNew || !!values.file : remoteUrlValid
 
   const onSave = async (): Promise<void> => {
     setSaving(true)
@@ -93,7 +90,8 @@ const EditInfoModal: React.FC<Props> = (props) => {
         closeRef.current?.click()
         return
       }
-      const itemToSave = { ...values }
+      // The main process selects and persists the working protocol for scheme-less addresses.
+      const itemToSave = { ...values, url: isLocal ? values.url : urlValue }
       await updateProfileItem(itemToSave)
       if (item.id && isCurrent) {
         await mihomoHotReloadConfig()
@@ -429,11 +427,20 @@ const EditInfoModal: React.FC<Props> = (props) => {
               </SettingItem>
               {values.type === 'remote' && (
                 <SettingItem title={t('profile.subscriptionAddress')}>
-                  <Input
-                    className="h-8"
-                    value={values.url}
-                    onChange={(e) => setValues({ ...values, url: e.target.value })}
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <Input
+                      className={cn('h-8', urlInvalid && 'border-destructive')}
+                      value={values.url ?? ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        setValues({ ...values, url: e.target.value })
+                        setUrlTouched(true)
+                      }}
+                      onBlur={() => setUrlTouched(true)}
+                    />
+                    {urlInvalid && (
+                      <p className="text-xs text-destructive">{t('profile.invalidUrl')}</p>
+                    )}
+                  </div>
                 </SettingItem>
               )}
             </div>

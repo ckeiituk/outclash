@@ -1,6 +1,7 @@
 name: Release Build
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - '*.*.*'
@@ -216,7 +217,7 @@ jobs:
           CSC_NAME: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
         shell: bash
         run: |
-          npx electron-vite build
+          pnpm web:build
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             npx electron-builder --publish never --win ${{ matrix.targets }} --${{ matrix.arch }}
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
@@ -235,7 +236,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         shell: bash
         run: |
-          npx electron-vite build
+          pnpm web:build
           npx electron-builder --publish never --mac ${{ matrix.targets }} --${{ matrix.arch }}
 
       - name: Add Portable Flag
@@ -298,6 +299,7 @@ jobs:
           files: latest.yml
 
   push-notify-to-telegram:
+    if: github.event_name == 'push' && github.event.created
     runs-on: ubuntu-latest
     needs: [release-update]
     env:

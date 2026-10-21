@@ -26,6 +26,7 @@ import { getUserAgent } from '../utils/userAgent'
 import { getHWID, getDeviceOS, getOSVersion, getDeviceModel } from '../utils/deviceInfo'
 import { t } from '../utils/i18n'
 import { downloadCustomCss } from '../resolve/theme'
+import { getSubscriptionUrlCandidates } from '../../shared/utils/subscription-url'
 
 let profileConfig: ProfileConfig // profile.yaml
 
@@ -118,6 +119,17 @@ async function applyCurrentProfile(): Promise<void> {
 }
 
 export async function updateProfileItem(item: ProfileItem): Promise<void> {
+  if (item.type === 'remote') {
+    const previous = await getProfileItem(item.id)
+    if (!previous) throw new Error('Profile not found')
+    const candidates = getSubscriptionUrlCandidates(item.url ?? '')
+    if (candidates.length !== 1 || item.url?.trim() !== previous.url) {
+      // The profile menu edits metadata directly; changed addresses need the same
+      // download/protocol selection path as imports before they can be saved.
+      await addProfileItem(item)
+      return
+    }
+  }
   await withProfileLock(() => replaceProfileItem(item))
 }
 
@@ -132,15 +144,6 @@ async function replaceProfileItem(item: ProfileItem): Promise<void> {
 }
 
 export async function addProfileItem(item: Partial<ProfileItem>): Promise<void> {
-  if (item.url && item.type === 'remote') {
-    const config = await getProfileConfig()
-    const duplicate = config.items?.find(
-      (existing) => existing.url === item.url && existing.id !== item.id
-    )
-    if (duplicate) {
-      throw new Error(t('error.duplicateProfile'))
-    }
-  }
   const { item: newItem, hwidLimitSupportUrl } = await createProfile(item)
   // The download above stays outside the lock, it can take long and changes nothing shared
   await withProfileLock(async () => {
@@ -251,6 +254,37 @@ async function downloadLogoAsBase64(
   }
 }
 
+async function assertUniqueSubscriptionUrl(id: string, url: string): Promise<void> {
+  const { items = [] } = await getProfileConfig()
+  if (
+    items.some(
+      (existing: ProfileItem) =>
+        existing.id !== id && getSubscriptionUrlCandidates(existing.url ?? '').includes(url)
+    )
+  ) {
+    throw new Error(t('error.duplicateProfile'))
+  }
+}
+
+function canRetrySubscriptionOverHttp(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response) return false
+  switch (error.code) {
+    case 'ECONNREFUSED':
+    case 'ETIMEDOUT':
+    case 'ECONNABORTED':
+    case 'ERR_SSL_WRONG_VERSION_NUMBER':
+    case 'ERR_SSL_UNKNOWN_PROTOCOL':
+    case 'ERR_SSL_PACKET_LENGTH_TOO_LONG':
+      return true
+    case 'EPROTO':
+      // A plain HTTP listener can answer a TLS handshake with an HTTP error.
+      // Other TLS failures (including certificate/client-auth errors) stay errors.
+      return /wrong version number|unknown protocol|packet length too long/i.test(error.message)
+    default:
+      return false
+  }
+}
+
 // `hwidLimitSupportUrl` is set (possibly to '') when the server reported that this device is over the
 // HWID limit while updating an existing subscription; the profile is still updated in that case.
 export async function createProfile(
@@ -276,11 +310,15 @@ export async function createProfile(
     case 'remote': {
       const { 'mixed-port': mixedPort = 0 } = (await getRuntimeConfig()) ?? {}
       if (!item.url) throw new Error('Empty URL')
-      let res: AxiosResponse
+      const [primaryUrl, fallbackUrl] = getSubscriptionUrlCandidates(item.url)
+      if (!primaryUrl) throw new Error(t('error.invalidSubscriptionUrl'))
+      if (!fallbackUrl) await assertUniqueSubscriptionUrl(id, primaryUrl)
+      let requestUrl = primaryUrl
+      let res: AxiosResponse<string>
       try {
         const httpsAgent = new https.Agent()
 
-        res = await axios.get(item.url, {
+        const requestOptions = {
           httpsAgent,
           ...(newItem.useProxy &&
             mixedPort && {
@@ -293,24 +331,42 @@ export async function createProfile(
             'x-ver-os': getOSVersion(),
             'x-device-model': getDeviceModel()
           },
-          responseType: 'text'
-        })
+          responseType: 'text' as const
+        }
+        let redirected = false
+        try {
+          res = await axios.get<string>(primaryUrl, {
+            ...requestOptions,
+            ...(fallbackUrl && {
+              timeout: 10000,
+              beforeRedirect: (): void => {
+                redirected = true
+              }
+            })
+          })
+        } catch (error: unknown) {
+          if (!fallbackUrl || redirected || !canRetrySubscriptionOverHttp(error)) throw error
+          requestUrl = fallbackUrl
+          res = await axios.get<string>(fallbackUrl, { ...requestOptions, timeout: 10000 })
+        }
       } catch (error) {
         if (axios.isAxiosError(error)) {
           if (error.code === 'ECONNRESET' || error.code === 'ECONNABORTED') {
-            throw new Error(`${t('error.networkResetOrTimeout')}：${item.url}`)
+            throw new Error(`${t('error.networkResetOrTimeout')}：${requestUrl}`)
           } else if (error.code === 'CERT_HAS_EXPIRED') {
-            throw new Error(`${t('error.serverCertExpired')}：${item.url}`)
+            throw new Error(`${t('error.serverCertExpired')}：${requestUrl}`)
           } else if (error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE') {
-            throw new Error(`${t('error.unableToVerifyCert')}：${item.url}`)
+            throw new Error(`${t('error.unableToVerifyCert')}：${requestUrl}`)
           } else if (error.message.includes('Certificate verification failed')) {
-            throw new Error(`${t('error.certVerificationFailed')}：${item.url}`)
+            throw new Error(`${t('error.certVerificationFailed')}：${requestUrl}`)
           } else {
             throw new Error(`${t('error.requestFailed')}：${error.message}`)
           }
         }
         throw error
       }
+      await assertUniqueSubscriptionUrl(id, requestUrl)
+      newItem.url = requestUrl
 
       let data: string = res.data
       const headers = res.headers

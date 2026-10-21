@@ -10,6 +10,8 @@ const { once } = require('node:events')
 const { EventEmitter } = require('node:events')
 const { PassThrough, Writable } = require('node:stream')
 const { gunzipSync } = require('node:zlib')
+const http = require('node:http')
+const axios = require('axios')
 const ts = require('typescript')
 
 const root = path.resolve(__dirname, '..')
@@ -151,6 +153,7 @@ async function profileFixture(t) {
     reloads: 0,
     restarts: 0,
     regenerations: 0,
+    requests: [],
     response: { data: 'proxies: []\nrules: []\n', headers: {} }
   }
   const configPath = path.join(dir, 'profile.yaml')
@@ -193,7 +196,13 @@ async function profileFixture(t) {
     './controledMihomo': { getControledMihomoConfig: async () => ({}) },
     electron: { ipcMain: { emit: () => {} } },
     '..': { mainWindow: null },
-    axios: { get: async () => state.response, isAxiosError: () => false },
+    axios: {
+      get: async (url, options) => {
+        state.requests.push({ url, options })
+        return state.request ? state.request(url, options) : state.response
+      },
+      isAxiosError: axios.isAxiosError
+    },
     '../utils/userAgent': { getUserAgent: async () => 'OutClash/Test' },
     '../utils/deviceInfo': {
       getHWID: () => 'test',
@@ -207,6 +216,269 @@ async function profileFixture(t) {
   await profile.setProfileConfig(state.config)
   return { profile, state, profilePath }
 }
+
+test('subscription addresses accept bare hosts, ports and tokens while preserving explicit protocols', () => {
+  const { getSubscriptionUrlCandidates: candidates } = loadModule(
+    'src/shared/utils/subscription-url.ts'
+  )
+  const path = '/sub/a%2Fb?token=a%2Bb%3D&flag=1'
+  for (const host of ['bl.outsquad.ru', 'localhost:8080', '127.0.0.1:8080', '[::1]:8080']) {
+    assert.deepEqual(candidates(`  ${host}${path}  `), [
+      `https://${host}${path}`,
+      `http://${host}${path}`
+    ])
+  }
+  for (const scheme of ['http', 'https', 'HTTPS']) {
+    const url = `${scheme}://example.test:1234${path}`
+    assert.deepEqual(candidates(` ${url} `), [url])
+  }
+  for (const invalid of [
+    '',
+    ' ',
+    'ftp://example.test/sub',
+    'file:///tmp/sub',
+    'vmess://proxy',
+    'mailto:user@example.test',
+    '/sub',
+    'https:example.test',
+    'https://',
+    'example.test:99999/sub',
+    'example .test/sub',
+    'example.test\n/sub',
+    'example.test\\sub'
+  ]) {
+    assert.deepEqual(candidates(invalid), [], invalid)
+  }
+})
+
+test('a bare subscription address loads HTTPS first and saves its full URL', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  const address = 'example.test/sub/a%2Fb?token=a%2Bb%3D'
+  await profile.addProfileItem({ ...state.config.items[0], url: ` ${address} ` })
+  assert.deepEqual(
+    state.requests.map(({ url }) => url),
+    [`https://${address}`]
+  )
+  assert.equal((await profile.getProfileItem('active')).url, `https://${address}`)
+  assert.equal(state.requests[0].options.headers['x-hwid'], 'test')
+  assert.equal(state.requests[0].options.headers['User-Agent'], 'OutClash/Test')
+})
+
+test('HTTP fallback saves the successful URL and subsequent updates use it directly', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  state.request = async (url) => {
+    if (url.startsWith('https:')) throw new axios.AxiosError('connect refused', 'ECONNREFUSED')
+    return state.response
+  }
+  await profile.addProfileItem({ ...state.config.items[0], url: 'example.test/sub?token=a%2Fb' })
+  const saved = await profile.getProfileItem('active')
+  assert.equal(saved.url, 'http://example.test/sub?token=a%2Fb')
+  await profile.addProfileItem(saved)
+  assert.deepEqual(
+    state.requests.map(({ url }) => url),
+    [
+      'https://example.test/sub?token=a%2Fb',
+      'http://example.test/sub?token=a%2Fb',
+      'http://example.test/sub?token=a%2Fb'
+    ]
+  )
+})
+
+test('editing the subscription address through profile metadata resolves and saves the working protocol', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  state.request = async (url) => {
+    if (url.startsWith('https:')) throw new axios.AxiosError('connect refused', 'ECONNREFUSED')
+    return state.response
+  }
+  await profile.updateProfileItem({ ...state.config.items[0], url: 'other.test/sub?token=a%2Fb' })
+  assert.equal((await profile.getProfileItem('active')).url, 'http://other.test/sub?token=a%2Fb')
+  assert.equal(state.requests.length, 2)
+
+  await profile.updateProfileItem({ ...(await profile.getProfileItem('active')), name: 'Renamed' })
+  assert.equal((await profile.getProfileItem('active')).name, 'Renamed')
+  assert.equal(state.requests.length, 2, 'metadata-only changes do not redownload the subscription')
+})
+
+test('HTTP fallback cannot duplicate a previously saved bare subscription address', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  state.config.items[0].url = 'example.test/sub?token=a%2Fb'
+  state.request = async (url) => {
+    if (url.startsWith('https:')) throw new axios.AxiosError('connect refused', 'ECONNREFUSED')
+    return state.response
+  }
+  await assert.rejects(
+    profile.addProfileItem({ id: 'other', type: 'remote', url: 'example.test/sub?token=a%2Fb' }),
+    /duplicateProfile/
+  )
+  assert.equal((await profile.getProfileConfig()).items.length, 1)
+})
+
+test('an incomplete buffered authentication response never triggers protocol fallback', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  const server = http.createServer((_request, response) => {
+    response.writeHead(401, { 'Content-Type': 'text/plain' })
+    response.flushHeaders()
+    // The body never completes; Axios reports ERR_BAD_RESPONSE without error.response.
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => new Promise((resolve) => server.close(resolve)))
+  let failure
+  state.request = async (_url, options) => {
+    try {
+      // Use loopback HTTP to exercise Axios's real buffered response/timeout path;
+      // TLS is irrelevant once the response headers have reached ClientRequest.
+      return await axios.get(`http://127.0.0.1:${server.address().port}/sub`, {
+        ...options,
+        proxy: false,
+        timeout: 200
+      })
+    } catch (error) {
+      failure = error
+      throw error
+    }
+  }
+  await assert.rejects(
+    profile.addProfileItem({ ...state.config.items[0], url: 'example.test/sub' })
+  )
+  assert.equal(failure.code, 'ERR_BAD_RESPONSE')
+  assert.equal(failure.response, undefined)
+  assert.deepEqual(
+    state.requests.map(({ url }) => url),
+    ['https://example.test/sub']
+  )
+})
+
+test('certificate, authentication, HTTP and ambiguous transport failures never cause HTTP fallback', async (t) => {
+  const failures = [
+    new axios.AxiosError('expired', 'CERT_HAS_EXPIRED'),
+    new axios.AxiosError('self signed', 'DEPTH_ZERO_SELF_SIGNED_CERT'),
+    new axios.AxiosError('wrong host', 'ERR_TLS_CERT_ALTNAME_INVALID'),
+    new axios.AxiosError('unable to verify', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE'),
+    new axios.AxiosError('tls alert certificate required', 'EPROTO'),
+    new axios.AxiosError('socket reset', 'ECONNRESET'),
+    new axios.AxiosError('DNS not found', 'ENOTFOUND'),
+    ...[401, 403, 404, 500].map(
+      (status) => new axios.AxiosError(`HTTP ${status}`, 'ERR_BAD_RESPONSE', null, null, { status })
+    )
+  ]
+  for (const failure of failures) {
+    await t.test(`${failure.code}: ${failure.message}`, async (t) => {
+      const { profile, state, profilePath } = await profileFixture(t)
+      const original = await fsp.readFile(profilePath('active'), 'utf8')
+      state.request = async () => {
+        throw failure
+      }
+      await assert.rejects(
+        profile.addProfileItem({ ...state.config.items[0], url: 'example.test/sub' })
+      )
+      assert.deepEqual(
+        state.requests.map(({ url }) => url),
+        ['https://example.test/sub']
+      )
+      assert.equal((await profile.getProfileItem('active')).url, 'https://example.test/sub')
+      assert.equal(await fsp.readFile(profilePath('active'), 'utf8'), original)
+    })
+  }
+})
+
+test('an explicit subscription protocol is tried once and preserved', async (t) => {
+  for (const scheme of ['http', 'https']) {
+    const { profile, state } = await profileFixture(t)
+    const url = `${scheme}://example.test/custom-sub`
+    await profile.addProfileItem({ ...state.config.items[0], url })
+    assert.equal((await profile.getProfileItem('active')).url, url)
+    state.request = async () => {
+      throw new axios.AxiosError('connect refused', 'ECONNREFUSED')
+    }
+    await assert.rejects(profile.addProfileItem({ ...state.config.items[0], url }))
+    assert.deepEqual(
+      state.requests.map((request) => request.url),
+      [url, url]
+    )
+  }
+})
+
+test('failed protocol detection leaves the saved profile and subscription contents untouched', async (t) => {
+  const { profile, state, profilePath } = await profileFixture(t)
+  const original = await fsp.readFile(profilePath('active'), 'utf8')
+  state.request = async () => {
+    throw new axios.AxiosError('connect refused', 'ECONNREFUSED')
+  }
+  await assert.rejects(
+    profile.addProfileItem({ ...state.config.items[0], url: 'unavailable.test/sub' })
+  )
+  assert.deepEqual(
+    state.requests.map(({ url }) => url),
+    ['https://unavailable.test/sub', 'http://unavailable.test/sub']
+  )
+  assert.equal((await profile.getProfileItem('active')).url, 'https://example.test/sub')
+  assert.equal(await fsp.readFile(profilePath('active'), 'utf8'), original)
+})
+
+test('redirect failures and invalid config responses never trigger an HTTP retry', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  state.request = async (_url, options) => {
+    options.beforeRedirect()
+    throw new axios.AxiosError('redirect target refused', 'ECONNREFUSED')
+  }
+  await assert.rejects(
+    profile.addProfileItem({ ...state.config.items[0], url: 'example.test/sub' })
+  )
+  assert.equal(state.requests.length, 1)
+
+  state.request = null
+  state.response = {
+    data: '<html>not a subscription</html>',
+    headers: { 'content-type': 'text/html' }
+  }
+  await assert.rejects(
+    profile.addProfileItem({ ...state.config.items[0], url: 'example.test/sub' }),
+    /subscriptionFormatError/
+  )
+  assert.equal(state.requests.length, 2)
+})
+
+test('protocol resolution cannot bypass duplicate checks or overwrite a profile on duplicate failure', async (t) => {
+  for (const scheme of ['http', 'https']) {
+    const { profile, state, profilePath } = await profileFixture(t)
+    const original = await fsp.readFile(profilePath('active'), 'utf8')
+    state.config.items.push({ id: 'other', type: 'remote', url: `${scheme}://duplicate.test/sub` })
+    state.request = async (url) => {
+      if (scheme === 'http' && url.startsWith('https:')) {
+        throw new axios.AxiosError('connect refused', 'ECONNREFUSED')
+      }
+      return state.response
+    }
+    await assert.rejects(
+      profile.addProfileItem({ ...state.config.items[0], url: 'duplicate.test/sub' }),
+      /duplicateProfile/
+    )
+    assert.equal(await fsp.readFile(profilePath('active'), 'utf8'), original)
+  }
+})
+
+test('a real HTTP-only listener is detected after the HTTPS handshake fails', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  const received = []
+  const server = http.createServer((request, response) => {
+    received.push({ url: request.url, hwid: request.headers['x-hwid'] })
+    response.setHeader('Content-Type', 'text/yaml')
+    response.end(state.response.data)
+  })
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  t.after(() => new Promise((resolve) => server.close(resolve)))
+  state.request = (url, options) => axios.get(url, { ...options, proxy: false })
+  const address = `127.0.0.1:${server.address().port}/sub?token=a%2Fb`
+  await profile.addProfileItem({ ...state.config.items[0], url: address })
+  assert.equal((await profile.getProfileItem('active')).url, `http://${address}`)
+  assert.deepEqual(
+    state.requests.map(({ url }) => url),
+    [`https://${address}`, `http://${address}`]
+  )
+  assert.deepEqual(received, [{ url: '/sub?token=a%2Fb', hwid: 'test' }])
+})
 
 test('a rejected profile restores the previous selection without restarting the healthy core', async (t) => {
   const { profile, state } = await profileFixture(t)
