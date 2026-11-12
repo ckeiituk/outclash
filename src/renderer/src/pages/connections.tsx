@@ -1,6 +1,6 @@
 import BasePage from '@renderer/components/base/base-page'
 import { mihomoCloseAllConnections, mihomoCloseConnection } from '@renderer/utils/ipc'
-import { useConnectionsStore } from '@renderer/store/connections-store'
+import { useConnectionsStore, useConnectionsStream } from '@renderer/store/connections-store'
 import React, { useCallback, useMemo, useState } from 'react'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
@@ -86,13 +86,15 @@ const Connections: React.FC = () => {
     displayIcon = true,
     displayAppName = true
   } = appConfig || {}
-  const info = useConnectionsStore((state) => state.info)
-  const activeConnections = useConnectionsStore((state) => state.active)
-  const closedConnections = useConnectionsStore((state) => state.closed)
-  const isPaused = useConnectionsStore((state) => state.isPaused)
-  const togglePause = useConnectionsStore((state) => state.togglePause)
-  const removeClosedById = useConnectionsStore((state) => state.removeClosedById)
-  const clearAllClosed = useConnectionsStore((state) => state.clearAllClosed)
+  useConnectionsStream()
+  const info = useConnectionsStore((s) => s.info)
+  const activeConnections = useConnectionsStore((s) => s.active)
+  const closedConnections = useConnectionsStore((s) => s.closed)
+  const isPaused = useConnectionsStore((s) => s.isPaused)
+  const togglePause = useConnectionsStore((s) => s.togglePause)
+  const removeClosedById = useConnectionsStore((s) => s.removeClosedById)
+  const clearAllClosed = useConnectionsStore((s) => s.clearAllClosed)
+
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [isSettingModalOpen, setIsSettingModalOpen] = useState(false)
   const [selected, setSelected] = useState<ControllerConnectionDetail>()

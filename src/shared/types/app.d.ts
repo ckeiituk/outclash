@@ -18,6 +18,9 @@ interface IHost {
   value: string | string[]
 }
 
+// How node latency is shown: `ping` as a number, `indicator` as a coloured dot
+type PingDisplay = 'ping' | 'indicator'
+
 interface AppConfig {
   core: 'mihomo' | 'mihomo-alpha'
   corePermissionMode?: 'elevated' | 'service'
@@ -77,6 +80,7 @@ interface AppConfig {
   silentStart: boolean
   autoCloseConnection: boolean
   expandProxyGroups?: boolean
+  pingDisplay?: PingDisplay
   sysProxy: ISysProxyConfig
   proxyMode?: boolean
   proxyModeBehaviorMigrated?: boolean
@@ -146,6 +150,8 @@ interface ProfileItem {
   customHwid?: string
   globalMode?: boolean
   expandProxyGroups?: boolean
+  // from the `ping-display` header; while set it replaces the app setting of the same name
+  pingDisplay?: PingDisplay
   customCss?: string
 }
 

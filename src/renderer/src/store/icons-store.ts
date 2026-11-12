@@ -32,6 +32,9 @@ const ICON_CACHE_VERSION = '2'
 
 const iconsByHash = new Map<string, string>()
 
+// Looking a name up starts a process on macOS, so names are kept across launches like icons
+const APP_NAME_PREFIX = 'appName:'
+
 // cyrb53, a fast 53-bit string hash
 const hashIcon = (dataURL: string): string => {
   let h1 = 0xdeadbeef
@@ -128,7 +131,15 @@ export const useIconsStore = create<IconsStore>((set, get) => ({
 
     const state = get()
     if (state.appNames[path] || processingAppNames.has(path) || appNameQueue.has(path)) return
-
+    try {
+      const cached = localStorage.getItem(APP_NAME_PREFIX + path)
+      if (cached) {
+        set((s) => ({ appNames: { ...s.appNames, [path]: cached } }))
+        return
+      }
+    } catch {
+      // ignore
+    }
     appNameQueue.add(path)
     scheduleAppNameProcess()
   }
@@ -200,12 +211,12 @@ const processAppNames = async (): Promise<void> => {
     try {
       const appName = await getAppName(path)
       if (appName) {
-        useIconsStore.setState((state) => ({
-          appNames: {
-            ...state.appNames,
-            [path]: appName
-          }
-        }))
+        try {
+          localStorage.setItem(APP_NAME_PREFIX + path, appName)
+        } catch {
+          // ignore
+        }
+        useIconsStore.setState((s) => ({ appNames: { ...s.appNames, [path]: appName } }))
       }
     } catch {
       // ignore

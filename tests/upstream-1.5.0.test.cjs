@@ -4,58 +4,14 @@ const fs = require('node:fs')
 const fsp = require('node:fs/promises')
 const path = require('node:path')
 const os = require('node:os')
-const vm = require('node:vm')
-const { createRequire } = require('node:module')
 const { once } = require('node:events')
 const { EventEmitter } = require('node:events')
 const { PassThrough, Writable } = require('node:stream')
 const { gunzipSync } = require('node:zlib')
 const http = require('node:http')
 const axios = require('axios')
-const ts = require('typescript')
 
-const root = path.resolve(__dirname, '..')
-
-// Load the actual TypeScript modules with Electron/OS boundaries replaced. Each load has its
-// own cache so tests exercise startup and migration state without touching a running client.
-function loadModule(relative, stubs = {}, globals = {}) {
-  const cache = new Map()
-  function load(filename) {
-    if (cache.has(filename)) return cache.get(filename).exports
-    const module = { exports: {} }
-    cache.set(filename, module)
-    const nativeRequire = createRequire(filename)
-    const localRequire = (name) => {
-      if (Object.hasOwn(stubs, name)) return stubs[name]
-      const source = path.resolve(path.dirname(filename), `${name}.ts`)
-      if (name.startsWith('.') && fs.existsSync(source)) return load(source)
-      return nativeRequire(name)
-    }
-    const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-      compilerOptions: {
-        module: ts.ModuleKind.CommonJS,
-        target: ts.ScriptTarget.ES2022,
-        esModuleInterop: true
-      }
-    }).outputText
-    const wrapper = vm.runInThisContext(
-      `(function(require,module,exports,__filename,__dirname,window,setTimeout,clearTimeout){${compiled}\n})`,
-      { filename }
-    )
-    wrapper(
-      localRequire,
-      module,
-      module.exports,
-      filename,
-      path.dirname(filename),
-      globals.window,
-      globals.setTimeout ?? setTimeout,
-      globals.clearTimeout ?? clearTimeout
-    )
-    return module.exports
-  }
-  return load(path.join(root, relative))
-}
+const { loadModule } = require('./helpers/load-module.cjs')
 
 async function temporaryDirectory(t) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'outclash-test-'))
@@ -128,6 +84,7 @@ test('malformed saved YAML keeps tray settings available without hiding core val
 test('core validation errors preserve a running state, and a later successful start clears them', () => {
   const status = loadModule('src/main/core/status.ts', {
     '..': { mainWindow: null },
+    '../resolve/tray': { customTrayWindow: null },
     '../utils/safeSend': { safeSend: () => {} }
   })
   status.setCoreStatus('running')
@@ -544,45 +501,28 @@ test('repairing the active subscription recovers a core that failed to start', a
   assert.equal(state.restarts, 1)
 })
 
-test('logs are batched newest first, capped, and clearing cancels pending lines', () => {
+test('log batches stay newest first and capped, and clearing resets row numbering', async () => {
   let listener
-  let timer
-  const store = loadModule(
-    'src/renderer/src/store/logs-store.ts',
-    {},
-    {
-      window: {
-        electron: {
-          ipcRenderer: {
-            on: (_name, callback) => {
-              listener = callback
-            },
-            removeListener: () => {}
-          }
-        }
-      },
-      setTimeout: (callback) => {
-        timer = callback
-        return 1
-      },
-      clearTimeout: () => {
-        timer = null
+  let detached = 0
+  const store = loadModule('src/renderer/src/store/logs-store.ts', {
+    '@renderer/utils/ipc': {
+      clearMihomoLogs: async () => {},
+      onIpc: (_channel, callback) => {
+        listener = callback
+        return () => detached++
       }
     }
-  )
+  })
   const detach = store.attachLogsStore()
-  for (let i = 0; i < 600; i++) listener(null, { type: 'info', payload: String(i) })
-  assert.equal(store.useLogsStore.getState().logs.length, 0)
-  timer()
+  store.attachLogsStore() // React remounts must not attach a second listener.
+  listener(Array.from({ length: 600 }, (_, i) => ({ type: 'info', payload: String(i) })))
   assert.equal(store.useLogsStore.getState().logs.length, 500)
   assert.equal(store.useLogsStore.getState().logs[0].payload, '599')
-  listener(null, { type: 'info', payload: 'pending' })
-  store.useLogsStore.getState().clear()
-  assert.equal(timer, null)
-  listener(null, { type: 'info', payload: 'new' })
-  timer()
+  await store.useLogsStore.getState().clear()
+  listener([{ type: 'info', payload: 'new' }])
   assert.equal(store.useLogsStore.getState().logs[0].id, 1)
   detach()
+  assert.equal(detached, 1)
   assert.equal(store.useLogsStore.getState().logs.length, 0)
 })
 
@@ -654,10 +594,12 @@ test('the support upload file picker includes archived logs', async (t) => {
 function managerFixture(t) {
   const status = loadModule('src/main/core/status.ts', {
     '..': { mainWindow: null },
+    '../resolve/tray': { customTrayWindow: null },
     '../utils/safeSend': { safeSend: () => {} }
   })
   const state = {
     binaryExists: true,
+    readyFile: false,
     validationError: null,
     spawnCount: 0,
     proxyDrops: 0,
@@ -672,6 +614,8 @@ function managerFixture(t) {
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
   child.pid = 12345
+  child.exitCode = null
+  child.signalCode = null
   child.killed = false
   child.kill = () => {
     child.killed = true
@@ -729,13 +673,20 @@ function managerFixture(t) {
         getProfileConfig: async () => ({ current: 'active' }),
         getControledMihomoConfig: async () => ({ tun: { enable: false } })
       },
-      electron: { app: {}, ipcMain: {}, net: {} },
+      electron: { app: {}, ipcMain: { emit: () => {} }, net: {} },
       './mihomoApi': api,
       './status': status,
       'fs/promises': { writeFile: noop, rm: noop },
-      fs: { existsSync: (file) => file === '/fake/mihomo' && state.binaryExists },
+      fs: {
+        existsSync: (file) =>
+          file === '/fake/mihomo'
+            ? state.binaryExists
+            : file === '/fake/work/core-ready' && state.readyFile
+      },
       child_process: {
-        spawn: () => {
+        spawn: (_file, args, options) => {
+          state.spawnArgs = args
+          state.spawnOptions = options
           state.spawnCount++
           onSpawn()
           return child
@@ -836,22 +787,73 @@ test('profile restarts finish at controller readiness even while providers are s
   await manager.waitForCoreStart()
 })
 
-test('provider initialization after hot reload applies the new profile log level', async (t) => {
-  const { state, manager, child, spawned, logLevelEvents } = managerFixture(t)
+test('provider readiness applies the current profile log level after an intervening reload', async (t) => {
+  const { state, manager, child, spawned } = managerFixture(t)
   const starting = manager.startCore()
   await spawned
   child.stdout.write('RESTful API unix listening at: /fake/socket\n')
   const providers = await starting
-  child.stdout.write('Start initial compatible provider default\n')
-  await Promise.all(providers)
-  assert.deepEqual(state.appliedLogLevels, ['info'])
-
   state.effectiveLogLevel = 'warning'
-  await manager.resetProviderTracking()
-  const applied = once(logLevelEvents, 'applied')
-  child.stdout.write('Start initial compatible provider default\n')
-  await applied
-  assert.deepEqual(state.appliedLogLevels, ['info', 'warning'])
+  state.readyFile = true
+  await Promise.all(providers)
+  assert.deepEqual(state.appliedLogLevels, ['warning'])
+})
+
+test('controller messages split across chunks are recognized and a post-up marker releases group waiters', async (t) => {
+  const { state, manager, status, child, spawned } = managerFixture(t)
+  const starting = manager.startCore()
+  await spawned
+  child.stdout.write('RESTful API unix list')
+  assert.equal(status.getCoreState().status, 'starting')
+  child.stdout.write('ening at: /fake/socket\n')
+  const providers = await starting
+  assert.equal(status.getCoreState().status, 'running')
+  assert.equal(state.spawnOptions.cwd, '/fake/work')
+  assert.ok(state.spawnArgs.includes('-post-up'))
+  let groupsReady = false
+  const waiting = manager.waitForGroupsReady().then(() => {
+    groupsReady = true
+  })
+  await Promise.resolve()
+  assert.equal(groupsReady, false)
+  state.readyFile = true
+  await waiting
+  await Promise.all(providers)
+})
+
+test('stopping before providers finish settles startup waiters and leaves no readiness poll', async (t) => {
+  const { manager, child, spawned } = managerFixture(t)
+  const starting = manager.startCore()
+  await spawned
+  child.stdout.write('RESTful API unix listening at: /fake/socket\n')
+  const providers = await starting
+  const groups = manager.waitForGroupsReady()
+  await manager.stopCore()
+  await groups
+  await Promise.all(providers)
+})
+
+test('a failed start releases group readiness waiters', async (t) => {
+  const { state, manager } = managerFixture(t)
+  state.binaryExists = false
+  await assert.rejects(manager.startCore(), /ENOENT/)
+  await manager.waitForGroupsReady()
+})
+
+test('ping-display subscription headers accept the Android alias without replacing the user setting', async (t) => {
+  const { profile, state } = await profileFixture(t)
+  state.app.pingDisplay = 'ping'
+  state.response.headers = {
+    'x-ping-display': 'circle',
+    'profile-title': Buffer.from('Тест').toString('latin1')
+  }
+  await profile.addProfileItem(state.config.items[0])
+  assert.equal((await profile.getProfileItem('active')).pingDisplay, 'indicator')
+  assert.equal((await profile.getProfileItem('active')).name, 'Тест')
+  assert.equal(state.app.pingDisplay, 'ping')
+  state.response.headers['x-ping-display'] = 'unknown'
+  await profile.addProfileItem(state.config.items[0])
+  assert.equal((await profile.getProfileItem('active')).pingDisplay, undefined)
 })
 
 test('the first write after reopening an oversized log rotates it immediately', async (t) => {
@@ -878,7 +880,13 @@ test('the initial core-state request cannot overwrite a newer IPC event', async 
   const lifecycle = loadModule(
     'src/renderer/src/store/core-lifecycle-store.ts',
     {
-      '@renderer/utils/ipc': { getCoreState: () => request }
+      '@renderer/utils/ipc': {
+        getCoreState: () => request,
+        onIpc: (name, callback) => {
+          listeners.set(name, (_event, ...args) => callback(...args))
+          return () => listeners.delete(name)
+        }
+      }
     },
     {
       window: {
@@ -903,7 +911,15 @@ test('effective port subscribers refresh on every successful restart and profile
   const listeners = new Map()
   const lifecycle = loadModule(
     'src/renderer/src/store/core-lifecycle-store.ts',
-    { '@renderer/utils/ipc': { getCoreState: async () => ({ status: 'stopped' }) } },
+    {
+      '@renderer/utils/ipc': {
+        getCoreState: async () => ({ status: 'stopped' }),
+        onIpc: (name, callback) => {
+          listeners.set(name, (_event, ...args) => callback(...args))
+          return () => listeners.delete(name)
+        }
+      }
+    },
     {
       window: {
         electron: {

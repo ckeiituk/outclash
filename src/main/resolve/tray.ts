@@ -32,7 +32,7 @@ import { applyTheme } from './theme'
 import { t } from '../utils/i18n'
 
 export let tray: Tray | null = null
-let customTrayWindow: BrowserWindow | null = null
+export let customTrayWindow: BrowserWindow | null = null
 
 // Exponential backoff delays for the Windows tray icon registration check.
 // Explorer's notification area may not be ready on fast (or slow) startup —
@@ -80,7 +80,23 @@ function hideCustomTray(): void {
   }
 }
 
+// When the tray menu last lost focus, see the toggle check in showCustomTray
+let customTrayBlurredAt = 0
+// A tray icon click this soon after the menu hid on blur is the click that hid it
+const TRAY_TOGGLE_WINDOW_MS = 400
+
 async function showCustomTray(): Promise<void> {
+  // A second click on the tray icon closes the menu. Where that click takes the focus (Windows),
+  // the menu has already hidden itself on blur a moment ago and must not come back; where it
+  // does not, the menu is still visible
+  if (customTrayWindow && !customTrayWindow.isDestroyed()) {
+    if (customTrayWindow.isVisible()) {
+      hideCustomTray()
+      return
+    }
+    if (Date.now() - customTrayBlurredAt < TRAY_TOGGLE_WINDOW_MS) return
+  }
+
   const { useCustomTrayMenu = false, customTheme = 'default.css' } = await getAppConfig()
   if (!useCustomTrayMenu) {
     await updateTrayMenu()
@@ -100,6 +116,9 @@ async function showCustomTray(): Promise<void> {
       skipTaskbar: true,
       fullscreenable: false,
       focusable: true,
+      // The page draws its own rounded, bordered panel; the system mask of a frameless window
+      // has a larger radius on recent macOS and cut the border off at the corners
+      roundedCorners: false,
       hasShadow: true,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -109,6 +128,7 @@ async function showCustomTray(): Promise<void> {
     })
 
     customTrayWindow.on('blur', () => {
+      customTrayBlurredAt = Date.now()
       hideCustomTray()
     })
     customTrayWindow.on('close', () => {
@@ -389,11 +409,6 @@ async function initTray(winRetryAttempt = 0, generation = 0): Promise<void> {
     if (!useDockIcon && app.dock) {
       app.dock.hide()
     }
-    ipcMain.on('trayIconUpdate', async (_, png: string) => {
-      const image = nativeImage.createFromDataURL(png).resize({ height: 16 })
-      image.setTemplateImage(true)
-      tray?.setImage(image)
-    })
     tray?.addListener('right-click', async () => {
       await triggerMainWindow()
     })
@@ -436,9 +451,6 @@ async function initTray(winRetryAttempt = 0, generation = 0): Promise<void> {
     tray?.addListener('click', async () => {
       await triggerMainWindow()
     })
-    ipcMain.on('updateTrayMenu', async () => {
-      await updateTrayMenu()
-    })
   }
 }
 
@@ -449,6 +461,22 @@ export async function createTray(): Promise<void> {
     winTrayRetryTimeout = null
   }
   await initTray(0, trayGeneration)
+}
+
+// Registered once here rather than in createTray: hiding and showing the tray icon destroys the
+// tray and creates it again, and each pass used to add one more listener
+if (process.platform === 'darwin') {
+  ipcMain.on('trayIconUpdate', (_, png: string) => {
+    const image = nativeImage.createFromDataURL(png).resize({ height: 16 })
+    image.setTemplateImage(true)
+    tray?.setImage(image)
+  })
+}
+if (process.platform === 'linux') {
+  ipcMain.on('updateTrayMenu', async () => {
+    if (!tray) return
+    await updateTrayMenu()
+  })
 }
 
 async function updateTrayMenu(): Promise<void> {

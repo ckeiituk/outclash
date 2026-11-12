@@ -12,7 +12,6 @@ import { mutate } from 'swr'
 import { AppConfigProvider } from './hooks/use-app-config'
 import { ControledMihomoConfigProvider } from './hooks/use-controled-mihomo-config'
 import { ProfileConfigProvider } from './hooks/use-profile-config'
-import { RulesProvider } from './hooks/use-rules'
 import { GroupsProvider } from './hooks/use-groups'
 
 let F12Count = 0
@@ -92,10 +91,8 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
             <ControledMihomoConfigProvider>
               <ProfileConfigProvider>
                 <GroupsProvider>
-                  <RulesProvider>
-                    <App />
-                    <Toaster richColors position="bottom-right" />
-                  </RulesProvider>
+                  <App />
+                  <Toaster richColors position="bottom-right" />
                 </GroupsProvider>
               </ProfileConfigProvider>
             </ControledMihomoConfigProvider>

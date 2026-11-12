@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getCoreState } from '@renderer/utils/ipc'
+import { getCoreState, onIpc } from '@renderer/utils/ipc'
 
 interface CoreLifecycleStore {
   startedAt: number
@@ -40,9 +40,7 @@ export const reopenCoreError = (): void => {
 }
 
 let attached = false
-let coreStartedListener: (() => void) | null = null
-let profileReloadedListener: (() => void) | null = null
-let coreStateListener: ((_event: unknown, coreState: CoreState) => void) | null = null
+let detachIpc: (() => void)[] = []
 
 export const attachCoreLifecycleStore = (): (() => void) => {
   if (attached) {
@@ -54,19 +52,16 @@ export const attachCoreLifecycleStore = (): (() => void) => {
   attached = true
   let active = true
   let receivedCoreState = false
-  coreStartedListener = (): void => {
+  const coreStartedListener = (): void => {
     useCoreLifecycleStore.setState((state: CoreLifecycleStore) => ({
       startedAt: Math.max(Date.now(), state.startedAt + 1)
     }))
   }
-  profileReloadedListener = (): void => {
+  const profileReloadedListener = (): void => {
     useCoreLifecycleStore.setState((state: CoreLifecycleStore) => ({
       profileReloadedAt: Math.max(Date.now(), state.profileReloadedAt + 1)
     }))
   }
-  window.electron.ipcRenderer.on('core-started', coreStartedListener)
-  window.electron.ipcRenderer.on('profile-reloaded', profileReloadedListener)
-
   const updateCoreState = (coreState: CoreState): void => {
     useCoreLifecycleStore.setState((state: CoreLifecycleStore) => ({
       coreState,
@@ -76,11 +71,15 @@ export const attachCoreLifecycleStore = (): (() => void) => {
           : state.startedAt
     }))
   }
-  coreStateListener = (_event, coreState): void => {
+  const coreStateListener = (coreState: CoreState): void => {
     receivedCoreState = true
     updateCoreState(coreState)
   }
-  window.electron.ipcRenderer.on('coreStateChanged', coreStateListener)
+  detachIpc = [
+    onIpc('core-started', coreStartedListener),
+    onIpc('profile-reloaded', profileReloadedListener),
+    onIpc<[CoreState]>('coreStateChanged', coreStateListener)
+  ]
   // A failure at startup can happen before this window was listening for events
   getCoreState()
     .then((coreState: CoreState) => {
@@ -93,17 +92,7 @@ export const attachCoreLifecycleStore = (): (() => void) => {
     if (!attached) return
 
     attached = false
-    if (coreStartedListener) {
-      window.electron.ipcRenderer.removeListener('core-started', coreStartedListener)
-      coreStartedListener = null
-    }
-    if (profileReloadedListener) {
-      window.electron.ipcRenderer.removeListener('profile-reloaded', profileReloadedListener)
-      profileReloadedListener = null
-    }
-    if (coreStateListener) {
-      window.electron.ipcRenderer.removeListener('coreStateChanged', coreStateListener)
-      coreStateListener = null
-    }
+    detachIpc.forEach((detach: () => void) => detach())
+    detachIpc = []
   }
 }

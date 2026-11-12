@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { onIpc } from '@renderer/utils/ipc'
 
 interface TrafficStore {
   traffic: ControllerTraffic
@@ -37,7 +38,7 @@ const handleIpcPayload = (payload: ControllerTraffic): void => {
 }
 
 let attached = false
-let ipcListener: ((event: unknown, payload: ControllerTraffic) => void) | null = null
+let detachIpc: (() => void) | null = null
 
 export const attachTrafficStore = (): (() => void) => {
   if (attached) {
@@ -47,20 +48,14 @@ export const attachTrafficStore = (): (() => void) => {
   }
 
   attached = true
-  ipcListener = (_event, payload): void => {
-    handleIpcPayload(payload)
-  }
-  window.electron.ipcRenderer.on('mihomoTraffic', ipcListener)
+  detachIpc = onIpc<[ControllerTraffic]>('mihomoTraffic', handleIpcPayload)
 
   return (): void => {
     if (!attached) return
 
     attached = false
-    if (ipcListener) {
-      window.electron.ipcRenderer.removeListener('mihomoTraffic', ipcListener)
-      ipcListener = null
-    }
-
+    detachIpc?.()
+    detachIpc = null
     useTrafficStore.setState({ traffic: initialTraffic })
   }
 }

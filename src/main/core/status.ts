@@ -1,5 +1,6 @@
 import { mainWindow } from '..'
 import { safeSend } from '../utils/safeSend'
+import { customTrayWindow } from '../resolve/tray'
 
 export class CoreError extends Error {
   reason: CoreErrorReason
@@ -20,6 +21,7 @@ export function getCoreState(): CoreState {
 function updateCoreState(state: CoreState): void {
   coreState = state
   safeSend(mainWindow, 'coreStateChanged', state)
+  safeSend(customTrayWindow, 'coreStateChanged', state)
 }
 
 export function setCoreStatus(status: 'starting' | 'running' | 'stopped'): void {

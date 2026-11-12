@@ -21,46 +21,44 @@ import CollapseInput from '@renderer/components/base/collapse-input'
 import { includesIgnoreCase } from '@renderer/utils/includes'
 import { cn } from '@renderer/lib/utils'
 import { useControledMihomoConfig } from '@renderer/hooks/use-controled-mihomo-config'
+import { useProfileConfig } from '@renderer/hooks/use-profile-config'
+import { resolvePingDisplay } from '@renderer/utils/ping-display'
 import { useTranslation } from 'react-i18next'
+import { groupTypeColor, groupTypeIcon } from '@renderer/components/proxies/group-type'
 import {
   ChevronDown,
   ChevronsDownUp,
   ChevronsRight,
   ChevronsUpDown,
   Gauge,
-  MousePointerClick,
   LocateFixed,
-  Route,
-  Scale,
-  Shield,
   SlidersHorizontal,
   Zap
 } from 'lucide-react'
-
-const groupTypeColor: Record<string, string> = {
-  Selector:
-    'border-blue-500/40 bg-blue-500/8 text-blue-600 dark:text-blue-400 dark:border-blue-400/40',
-  URLTest:
-    'border-emerald-500/40 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400 dark:border-emerald-400/40',
-  Fallback:
-    'border-amber-500/40 bg-amber-500/8 text-amber-600 dark:text-amber-400 dark:border-amber-400/40',
-  LoadBalance:
-    'border-violet-500/40 bg-violet-500/8 text-violet-600 dark:text-violet-400 dark:border-violet-400/40',
-  Relay: 'border-rose-500/40 bg-rose-500/8 text-rose-600 dark:text-rose-400 dark:border-rose-400/40'
-}
-
-const groupTypeIcon: Record<string, React.ReactNode> = {
-  Selector: <MousePointerClick className="size-4" />,
-  URLTest: <Zap className="size-4" />,
-  Fallback: <Shield className="size-4" />,
-  LoadBalance: <Scale className="size-4" />,
-  Relay: <Route className="size-4" />
-}
 
 function getProviderName(
   proxy: ControllerProxiesDetail | ControllerGroupDetail
 ): string | undefined {
   return 'provider-name' in proxy ? proxy['provider-name'] : undefined
+}
+
+// Adds fresh delay results to the cached groups the way the core records them. Unchanged groups
+// and proxies keep their objects, so only what was tested re-renders.
+function withDelays(
+  groups: ControllerMixedGroup[],
+  delays: Map<string, number>,
+  time: string
+): ControllerMixedGroup[] {
+  return groups.map((group) => {
+    let changed = false
+    const all = group.all.map((proxy) => {
+      const delay = delays.get(proxy.name)
+      if (delay === undefined) return proxy
+      changed = true
+      return { ...proxy, history: [...proxy.history, { time, delay }] }
+    })
+    return changed ? { ...group, all } : group
+  })
 }
 
 const Proxies: React.FC = () => {
@@ -80,6 +78,8 @@ const Proxies: React.FC = () => {
     delayTestConcurrency = 50,
     expandProxyGroups = false
   } = appConfig || {}
+  const { profileConfig } = useProfileConfig()
+  const pingDisplay = resolvePingDisplay(appConfig, profileConfig)
   const [cols, setCols] = useState(1)
   const [isOpen, setIsOpen] = useState<boolean[]>([])
   const [delaying, setDelaying] = useState<boolean[]>([])
@@ -225,17 +225,33 @@ const Proxies: React.FC = () => {
     []
   )
 
-  const mutateThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const throttledMutate = useCallback(() => {
-    if (mutateThrottleRef.current) return
-    mutateThrottleRef.current = setTimeout(() => {
-      mutate()
-      mutateThrottleRef.current = null
-    }, 500)
+  // Results of a group test go into the cached groups at most twice a second. Fetching every
+  // group from the core after each result kept a large test busy with refetches and re-renders.
+  const pendingDelaysRef = useRef(new Map<string, number>())
+  const delayFlushRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flushDelays = useCallback(() => {
+    if (delayFlushRef.current) {
+      clearTimeout(delayFlushRef.current)
+      delayFlushRef.current = null
+    }
+    const delays = pendingDelaysRef.current
+    if (delays.size === 0) return
+    pendingDelaysRef.current = new Map()
+    const time = new Date().toISOString()
+    mutate((current) => current && withDelays(current, delays, time), { revalidate: false })
   }, [mutate])
+  const recordDelay = useCallback(
+    (name: string, delay: number) => {
+      pendingDelaysRef.current.set(name, delay)
+      if (!delayFlushRef.current) {
+        delayFlushRef.current = setTimeout(flushDelays, 500)
+      }
+    },
+    [flushDelays]
+  )
   useEffect(() => {
     return () => {
-      if (mutateThrottleRef.current) clearTimeout(mutateThrottleRef.current)
+      if (delayFlushRef.current) clearTimeout(delayFlushRef.current)
     }
   }, [])
 
@@ -260,12 +276,17 @@ const Proxies: React.FC = () => {
       for (const proxy of allProxies[index]) {
         const promise = Promise.resolve().then(async () => {
           try {
-            await mihomoProxyDelay(proxy.name, groups[index].testUrl, getProviderName(proxy))
+            const { delay } = await mihomoProxyDelay(
+              proxy.name,
+              groups[index].testUrl,
+              getProviderName(proxy)
+            )
+            if (typeof delay === 'number') recordDelay(proxy.name, delay)
           } catch {
-            // ignore
+            // The core records a failed test as 0, which shows as a timeout
+            recordDelay(proxy.name, 0)
           } finally {
             completedProxiesRef.current.add(proxy.name)
-            throttledMutate()
           }
         })
         result.push(promise)
@@ -278,6 +299,8 @@ const Proxies: React.FC = () => {
         }
       }
       await Promise.all(result)
+      flushDelays()
+      // One fetch at the end picks up what only the core knows, such as a url-test group's choice
       mutate()
       setDelaying((prev) => {
         const newDelaying = [...prev]
@@ -285,7 +308,7 @@ const Proxies: React.FC = () => {
         return newDelaying
       })
     },
-    [allProxies, groups, delayTestConcurrency, mutate, throttledMutate]
+    [allProxies, groups, delayTestConcurrency, mutate, recordDelay, flushDelays]
   )
 
   const calcCols = useCallback((): number => {
@@ -556,6 +579,7 @@ const Proxies: React.FC = () => {
                     proxy={proxy}
                     group={currentGroups[groupIndex]}
                     proxyDisplayLayout={proxyDisplayLayout}
+                    pingDisplay={pingDisplay}
                     selected={proxy.name === currentGroups[groupIndex]?.now}
                     isGroupDelaying={delayingProxiesRef.current.has(proxy.name)}
                   />
@@ -568,7 +592,16 @@ const Proxies: React.FC = () => {
         <div>Never See This</div>
       )
     },
-    [proxyCols, cols, mutate, onProxyDelay, onChangeProxy, proxyDisplayLayout, delayingTick]
+    [
+      proxyCols,
+      cols,
+      mutate,
+      onProxyDelay,
+      onChangeProxy,
+      proxyDisplayLayout,
+      pingDisplay,
+      delayingTick
+    ]
   )
 
   return (

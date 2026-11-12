@@ -23,6 +23,7 @@ import { defaultProfile } from '../utils/template'
 import { dirname, join } from 'path'
 import { deepMerge } from '../utils/merge'
 import { getUserAgent } from '../utils/userAgent'
+import { decodeHeaderText } from '../utils/headers'
 import { getHWID, getDeviceOS, getOSVersion, getDeviceModel } from '../utils/deviceInfo'
 import { t } from '../utils/i18n'
 import { downloadCustomCss } from '../resolve/theme'
@@ -181,6 +182,20 @@ async function applyProfileExpandProxyGroups(id: string): Promise<void> {
   const { expandProxyGroups } = await getAppConfig()
   if (expandProxyGroups === profile.expandProxyGroups) return
   await patchAppConfig({ expandProxyGroups: profile.expandProxyGroups })
+}
+
+// `circle` is the Android name for `indicator`. An unknown value counts as no header, so the
+// user's own setting stays in effect.
+function parsePingDisplay(value: string): PingDisplay | undefined {
+  switch (value.trim().toLowerCase()) {
+    case 'ping':
+      return 'ping'
+    case 'indicator':
+    case 'circle':
+      return 'indicator'
+    default:
+      return undefined
+  }
 }
 
 async function enforceGlobalModeRestriction(id: string): Promise<void> {
@@ -400,12 +415,7 @@ export async function createProfile(
         k.toLowerCase().endsWith('profile-title')
       )
       if (profileTitleKey) {
-        const titleValue = headers[profileTitleKey]
-        if (titleValue.startsWith('base64:')) {
-          newItem.name = Buffer.from(titleValue.slice(7), 'base64').toString('utf-8')
-        } else {
-          newItem.name = titleValue
-        }
+        newItem.name = decodeHeaderText(headers[profileTitleKey])
       } else {
         const contentDispositionKey = Object.keys(headers).find((k) =>
           k.toLowerCase().endsWith('content-disposition')
@@ -424,10 +434,7 @@ export async function createProfile(
         k.toLowerCase().endsWith('profile-web-page-name')
       )
       if (homeNameKey) {
-        const homeNameValue = headers[homeNameKey]
-        newItem.homeName = homeNameValue.startsWith('base64:')
-          ? Buffer.from(homeNameValue.slice(7), 'base64').toString('utf-8')
-          : homeNameValue
+        newItem.homeName = decodeHeaderText(headers[homeNameKey])
       }
       const intervalKey = Object.keys(headers).find((k) =>
         k.toLowerCase().endsWith('profile-update-interval')
@@ -486,13 +493,15 @@ export async function createProfile(
       if (expandProxyGroupsKey) {
         newItem.expandProxyGroups = String(headers[expandProxyGroupsKey]).toLowerCase() !== 'false'
       }
+      const pingDisplayKey = Object.keys(headers).find((k) =>
+        k.toLowerCase().endsWith('ping-display')
+      )
+      if (pingDisplayKey) {
+        newItem.pingDisplay = parsePingDisplay(String(headers[pingDisplayKey]))
+      }
       const announceKey = Object.keys(headers).find((k) => k.toLowerCase().endsWith('announce'))
       if (announceKey) {
-        const announceValue = headers[announceKey]
-        const decoded = announceValue.startsWith('base64:')
-          ? Buffer.from(announceValue.slice(7), 'base64').toString('utf-8')
-          : announceValue
-        newItem.announce = decoded.replace(/\\n/g, '\n')
+        newItem.announce = decodeHeaderText(headers[announceKey]).replace(/\\n/g, '\n')
       }
       const customCssKey = Object.keys(headers).find((k) => k.toLowerCase().endsWith('custom-css'))
       if (customCssKey) {

@@ -5,7 +5,7 @@ import { useControledMihomoConfig } from '@renderer/hooks/use-controled-mihomo-c
 import { useEffectivePorts } from '@renderer/hooks/use-effective-ports'
 import { useProfileConfig } from '@renderer/hooks/use-profile-config'
 import { useGroups } from '@renderer/hooks/use-groups'
-import { triggerSysProxy, updateTrayIcon, mihomoHotReloadConfig } from '@renderer/utils/ipc'
+import { setConnectionEnabled } from '@renderer/utils/connection'
 import { useTranslation } from 'react-i18next'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -82,10 +82,30 @@ const ConnectedTimer = memo(({ active }: { active: boolean }) => {
 })
 ConnectedTimer.displayName = 'ConnectedTimer'
 
+// Traffic ticks every second; subscribing here keeps them from re-rendering the whole page
+const TrafficTotals = memo(() => {
+  const upTotal = useTrafficStore((s) => s.traffic.upTotal)
+  const downTotal = useTrafficStore((s) => s.traffic.downTotal)
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <ArrowUp className="size-3.5 text-stroke-power-on" />
+        <span>{calcTraffic(upTotal)}</span>
+      </div>
+      <div className="h-3 w-px bg-stroke" />
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <ArrowDown className="size-3.5 text-stroke-power-on" />
+        <span>{calcTraffic(downTotal)}</span>
+      </div>
+    </>
+  )
+})
+TrafficTotals.displayName = 'TrafficTotals'
+
 const Home: React.FC = () => {
   const { t } = useTranslation()
   const { appConfig, patchAppConfig } = useAppConfig()
-  const { mainSwitchMode = 'tun', sysProxy, onlyActiveDevice = false } = appConfig || {}
+  const { mainSwitchMode = 'tun', sysProxy } = appConfig || {}
   const { enable: sysProxyEnable = true, mode } = sysProxy || {}
   const { controledMihomoConfig, patchControledMihomoConfig } = useControledMihomoConfig()
   const { tun } = controledMihomoConfig || {}
@@ -114,8 +134,6 @@ const Home: React.FC = () => {
     setEditingItem(newProfile)
     setShowEditModal(true)
   }
-
-  const trafficInfo = useTrafficStore((state) => state.traffic)
 
   const [loading, setLoading] = useState(false)
   const [loadingDirection, setLoadingDirection] = useState<'connecting' | 'disconnecting'>(
@@ -246,36 +264,13 @@ const Home: React.FC = () => {
     setLoading(true)
     setLoadingDirection(enable ? 'connecting' : 'disconnecting')
     try {
-      if (enable) {
-        if (mainSwitchMode === 'tun') {
-          await patchControledMihomoConfig({ tun: { enable: true }, dns: { enable: true } })
-          await mihomoHotReloadConfig()
-        } else {
-          if (mode == 'manual' && sysProxyDisabled) return
-          await patchAppConfig({ sysProxy: { enable: true } })
-          await mihomoHotReloadConfig()
-          await triggerSysProxy(true, onlyActiveDevice)
-        }
-      } else {
-        // Disable whichever mechanism is currently active, independent of
-        // mainSwitchMode — otherwise switching the mode while a mechanism is on
-        // would leave it running (see upstream 303e1781).
-        const tunWasEnabled = tun?.enable ?? false
-        const sysProxyWasEnabled = sysProxyEnable
-        if (tunWasEnabled) {
-          await patchControledMihomoConfig({ tun: { enable: false } })
-        }
-        if (sysProxyWasEnabled) {
-          await triggerSysProxy(false, onlyActiveDevice)
-          await patchAppConfig({ sysProxy: { enable: false } })
-        }
-        if (tunWasEnabled || sysProxyWasEnabled) {
-          await mihomoHotReloadConfig()
-        }
-      }
-      window.electron.ipcRenderer.send('updateFloatingWindow')
-      window.electron.ipcRenderer.send('updateTrayMenu')
-      await updateTrayIcon()
+      await setConnectionEnabled(enable, {
+        appConfig,
+        controledMihomoConfig,
+        mixedPort,
+        patchAppConfig,
+        patchControledMihomoConfig
+      })
     } catch (e) {
       toast.error(`${e}`)
     } finally {
@@ -488,15 +483,7 @@ const Home: React.FC = () => {
                 showConnectedTimer ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1'
               }`}
             >
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <ArrowUp className="size-3.5 text-stroke-power-on" />
-                <span>{calcTraffic(trafficInfo.upTotal)}</span>
-              </div>
-              <div className="h-3 w-px bg-stroke" />
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <ArrowDown className="size-3.5 text-stroke-power-on" />
-                <span>{calcTraffic(trafficInfo.downTotal)}</span>
-              </div>
+              <TrafficTotals />
             </div>
           </div>
 

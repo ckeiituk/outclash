@@ -7,6 +7,7 @@ import { Separator } from '@renderer/components/ui/separator'
 import { Input } from '@renderer/components/ui/input'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { LogEntry, useLogsStore } from '@renderer/store/logs-store'
 import { includesIgnoreCase } from '@renderer/utils/includes'
@@ -65,7 +66,7 @@ const Logs: React.FC = () => {
   }, [])
 
   const handleClear = useCallback(() => {
-    clearLogs()
+    void clearLogs().catch((error: unknown) => toast.error(String(error)))
     setShownLogs([])
   }, [clearLogs])
 
