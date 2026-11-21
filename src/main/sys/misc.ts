@@ -101,13 +101,17 @@ const elevateTaskXml = `<?xml version="1.0" encoding="UTF-16"?>
 </Task>
 `
 
-export function createElevateTaskSync(): void {
-  const taskFilePath = path.join(taskDir(), `outclash-run.xml`)
-  writeFileSync(taskFilePath, Buffer.from(`\ufeff${elevateTaskXml}`, 'utf-16le'))
+export function syncTaskLauncherSync(): void {
   copyFileSync(
     path.join(resourcesFilesDir(), 'outclash-run.exe'),
     path.join(taskDir(), 'outclash-run.exe')
   )
+}
+
+export function createElevateTaskSync(): void {
+  const taskFilePath = path.join(taskDir(), `outclash-run.xml`)
+  writeFileSync(taskFilePath, Buffer.from(`\ufeff${elevateTaskXml}`, 'utf-16le'))
+  syncTaskLauncherSync()
   execSync(
     `%SystemRoot%\\System32\\schtasks.exe /create /tn "outclash-run" /xml "${taskFilePath}" /f`
   )

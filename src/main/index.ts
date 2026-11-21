@@ -24,7 +24,7 @@ import { init } from './utils/init'
 import path, { join } from 'path'
 import { initShortcut } from './resolve/shortcut'
 import { execSync, spawn } from 'child_process'
-import { createElevateTaskSync } from './sys/misc'
+import { createElevateTaskSync, syncTaskLauncherSync } from './sys/misc'
 import { initProfileUpdater } from './core/profileUpdater'
 import { existsSync, writeFileSync } from 'fs'
 import { appendFile } from 'fs/promises'
@@ -182,6 +182,13 @@ if (
       // First launch without admin — continue startup and show UI notification
       needsFirstRunAdmin = true
     }
+  }
+} else if (process.platform === 'win32' && !is.dev) {
+  try {
+    syncTaskLauncherSync()
+  } catch (error) {
+    // Windows can still have the launcher open. Retry on the next start.
+    console.warn('Could not update the scheduled task launcher', error)
   }
 }
 
