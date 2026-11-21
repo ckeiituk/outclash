@@ -2,171 +2,29 @@ name: Release Build
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - '*.*.*'
-permissions: write-all
-env:
-  MACOS_SIGNING_READY: ${{ secrets.APPLE_CERTIFICATE != '' && secrets.APPLE_CERTIFICATE_PASSWORD != '' && secrets.APPLE_SIGNING_IDENTITY != '' }}
-concurrency:
-  group: '${{ github.workflow }} - ${{ github.head_ref || github.ref }}'
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+permissions:
+  contents: write
 
 jobs:
-  check_tag_version:
-    name: Check Release Tag and package.json Version Consistency
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Check tag and package.json version
-        run: |
-          TAG_REF="${GITHUB_REF##*/}"
-          echo "Current tag: $TAG_REF"
-          PKG_VERSION=$(jq -r .version package.json)
-          echo "package.json version: $PKG_VERSION"
-          if [[ "$PKG_VERSION" == *-* || "$PKG_VERSION" == *+* ]]; then
-            echo "Release workflow only supports stable package.json versions."
-            exit 1
-          fi
-          if [[ "$TAG_REF" != "$PKG_VERSION" ]]; then
-            echo "Tag ($TAG_REF) does not match package.json version ($PKG_VERSION)."
-            exit 1
-          fi
-          echo "Tag and package.json version are consistent."
-
-  create_release_notes:
-    name: Create Release Notes
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Fetch changelog
-        id: fetch_changelog
-        run: |
-          if [ -f "changelog.md" ]; then
-            UPDATE_LOGS=$(awk '/^## /{n++} n==1' changelog.md)
-            if [ -n "$UPDATE_LOGS" ]; then
-              echo "Found changelog"
-              echo "UPDATE_LOGS<<EOF" >> $GITHUB_ENV
-              echo "$UPDATE_LOGS" >> $GITHUB_ENV
-              echo "EOF" >> $GITHUB_ENV
-            else
-              echo "changelog.md is empty"
-            fi
-          else
-            echo "changelog.md file not found"
-          fi
-        shell: bash
-
-      - name: Get Version
-        run: |
-          echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
-          echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
-
-      - name: Publish release (publish draft)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.VERSION }}
-          name: 'OutClash v${{ env.VERSION }}'
-          draft: false
-          prerelease: false
-          make_latest: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - run: |
-          if [ -z "$UPDATE_LOGS" ]; then
-            echo "No update logs found, using default message"
-            UPDATE_LOGS="More new features are now supported. Check for detailed changelog soon."
-          else
-            echo "Using found update logs"
-          fi
-
-          cat > release.txt << EOF
-          $UPDATE_LOGS
-
-          ## Which version should I download?
-
-          ### Linux
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_amd64.deb"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x86_64.rpm"><img src="https://img.shields.io/badge/x64-default?style=flat&logo=fedora&label=RPM"> </a>
-
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64.deb"><img src="https://img.shields.io/badge/arm64-default?style=flat&logo=debian&label=DEB"> </a><br>
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_aarch64.rpm"><img src="https://img.shields.io/badge/aarch64-default?style=flat&logo=fedora&label=RPM"> </a>
-
-          ### macOS
-          These packages are unsigned when Apple signing credentials are unavailable.
-
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64.pkg">Apple Silicon (PKG)</a><br>
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64.pkg">Intel (PKG)</a>
-
-          ### Windows
-          #### Normal version (recommended)
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64-setup.exe"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=exe"></a><br>
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64-setup.exe"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=exe"></a>
-
-          #### Portable version
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_x64-portable.7z"><img src="https://badgen.net/badge/icon/x64?icon=windows&label=7z"></a><br>
-          <a href="https://github.com/ckeiituk/outclash/releases/download/${{ env.VERSION }}/OutClash_arm64-portable.7z"><img src="https://badgen.net/badge/icon/arm64?icon=windows&label=7z"></a>
-
-          Created at ${{ env.BUILDTIME }}.
-          EOF
-
-      - name: Upload Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{env.VERSION}}
-          name: 'OutClash v${{env.VERSION}}'
-          body_path: release.txt
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   release:
     name: Release Build
-    needs: [check_tag_version, create_release_notes]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            arch: x64
-            targets: nsis
-          - os: windows-latest
-            arch: x64
-            targets: 7z
-          - os: windows-latest
-            arch: arm64
-            targets: nsis
-          - os: windows-latest
-            arch: arm64
-            targets: 7z
-          - os: macos-latest
-            arch: arm64
-            targets: pkg
-          - os: macos-latest
-            arch: x64
-            targets: pkg
-          - os: ubuntu-latest
-            arch: x64
-            targets: deb
           - os: ubuntu-latest
             arch: x64
             targets: rpm
-          - os: ubuntu-latest
-            arch: x64
-            targets: pacman
-          - os: ubuntu-latest
-            arch: arm64
-            targets: deb
           - os: ubuntu-latest
             arch: arm64
             targets: rpm
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+        with:
+          ref: b5faaa3333cf11e8470c6e00ad2c95a812a1a809
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -188,69 +46,21 @@ jobs:
       - name: Download sidecar binaries
         run: pnpm prepare --${{ matrix.arch }}
 
-      - name: Install Build Tools (Linux pacman)
-        if: matrix.os == 'ubuntu-latest' && matrix.targets == 'pacman'
-        run: |
-          sudo apt-get update && sudo apt-get install -y libarchive-tools fakeroot
-
-      - name: Get Version (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $v = node -p "require('./package.json').version"
-          Add-Content -Path $env:GITHUB_ENV -Value "VERSION=$v"
+      - name: Install RPM tools
+        run: sudo apt-get update && sudo apt-get install -y rpm
 
       - name: Get Version (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: node -e "console.log('VERSION=' + require('./package.json').version)" >> "$GITHUB_ENV"
 
-      - name: Build
-        if: matrix.os != 'macos-latest' || env.MACOS_SIGNING_READY == 'true'
+      - name: Build RPM
         env:
-          NODE_OPTIONS: '--max_old_space_size=4096'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           npm_config_arch: ${{ matrix.arch }}
           npm_config_target_arch: ${{ matrix.arch }}
-          CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERTIFICATE || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE || '') }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WINDOWS_CERT_PASSWORD || (matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_PASSWORD || '') }}
-          CSC_NAME: ${{ matrix.os == 'macos-latest' && secrets.APPLE_SIGNING_IDENTITY || '' }}
-        shell: bash
         run: |
           pnpm web:build
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            npx electron-builder --publish never --win ${{ matrix.targets }} --${{ matrix.arch }}
-          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            npx electron-builder --publish never --linux ${{ matrix.targets }} --${{ matrix.arch }}
-          else
-            npx electron-builder --publish never --mac ${{ matrix.targets }} --${{ matrix.arch }}
-          fi
-
-      - name: Build (macOS, unsigned)
-        if: matrix.os == 'macos-latest' && env.MACOS_SIGNING_READY != 'true'
-        env:
-          NODE_OPTIONS: '--max_old_space_size=4096'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          npm_config_arch: ${{ matrix.arch }}
-          npm_config_target_arch: ${{ matrix.arch }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        shell: bash
-        run: |
-          pnpm web:build
-          npx electron-builder --publish never --mac ${{ matrix.targets }} --${{ matrix.arch }}
-
-      - name: Add Portable Flag
-        if: matrix.os == 'windows-latest' && matrix.targets == '7z'
-        shell: pwsh
-        run: |
-          New-Item -Path "PORTABLE" -ItemType File
-          Get-ChildItem dist/*portable.7z | ForEach-Object {
-            7z a $_.FullName PORTABLE
-          }
-
-      - name: Generate latest.yml
-        shell: bash
-        run: SKIP_CHANGELOG=1 pnpm updater
+          pnpm exec electron-builder --publish never --linux rpm --${{ matrix.arch }}
 
       - name: Upload Release
         uses: softprops/action-gh-release@v2
@@ -258,9 +68,9 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: 'OutClash v${{ env.VERSION }}'
           token: ${{ secrets.GITHUB_TOKEN }}
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
           files: |
-            dist/OutClash*
+            dist/OutClash*.rpm
 
   release-update:
     name: Release Update
@@ -269,6 +79,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: b5faaa3333cf11e8470c6e00ad2c95a812a1a809
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -297,76 +109,3 @@ jobs:
           tag_name: ${{ env.VERSION }}
           token: ${{ secrets.GITHUB_TOKEN }}
           files: latest.yml
-
-  push-notify-to-telegram:
-    if: github.event_name == 'push' && github.event.created
-    runs-on: ubuntu-latest
-    needs: [release-update]
-    env:
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      TELEGRAM_TO_CHANNEL: ${{ secrets.TELEGRAM_TO_CHANNEL }}
-      TELEGRAM_TO_GROUP: ${{ secrets.TELEGRAM_TO_GROUP }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Fetch changelog
-        id: fetch_changelog
-        run: |
-          if [ -f "changelog.md" ]; then
-            UPDATE_LOGS=$(awk '/^## /{n++} n==1' changelog.md)
-            if [ -n "$UPDATE_LOGS" ]; then
-              echo "Found changelog"
-              echo "UPDATE_LOGS<<EOF" >> $GITHUB_ENV
-              echo "$UPDATE_LOGS" >> $GITHUB_ENV
-              echo "EOF" >> $GITHUB_ENV
-            else
-              echo "changelog.md is empty"
-            fi
-          else
-            echo "changelog.md file not found"
-          fi
-        shell: bash
-
-      - name: Get Version
-        run: |
-          echo "VERSION=$(jq -r .version package.json)" >> $GITHUB_ENV
-          echo "BUILDTIME=$(TZ=Europe/Moscow date)" >> $GITHUB_ENV
-
-      - run: |
-          if [ -z "$UPDATE_LOGS" ]; then
-            echo "No update logs found, using default message"
-            UPDATE_LOGS="More new features are now supported. Check for detailed changelog soon."
-          else
-            echo "Using found update logs"
-            UPDATE_LOGS=$(echo "$UPDATE_LOGS" | sed 's/^## \(v.*\)/\*\1\*/')
-          fi
-
-          cat > release.txt << EOF
-          Вышло обновление!
-
-          $UPDATE_LOGS
-
-          [Ссылка на релиз](https://github.com/ckeiituk/outclash/releases/latest)
-
-          EOF
-
-      - name: notify to channel
-        if: ${{ env.TELEGRAM_TOKEN != '' && env.TELEGRAM_TO_CHANNEL != '' }}
-        continue-on-error: true
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_TO_CHANNEL }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          message_file: release.txt
-          format: markdown
-
-      - name: notify to group
-        if: ${{ env.TELEGRAM_TOKEN != '' && env.TELEGRAM_TO_GROUP != '' }}
-        continue-on-error: true
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_TO_GROUP }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          message_file: release.txt
-          format: markdown
